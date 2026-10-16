@@ -347,19 +347,18 @@ function renderMeanings() {
       classification.rel = "noopener noreferrer";
       surahText.append(classification);
     }
+    const textKey = quranTextKeys[activeAssignment];
     if (reading.basmala) {
       const basmala = createElement("div", "basmala");
       const basmalaWords = createElement("span", "quran-verse-text");
       const basmalaPanel = createElement("aside", "word-meaning-panel");
       basmalaPanel.hidden = true;
       basmalaPanel.setAttribute("aria-live", "polite");
-      basmalaPanel.id = `meaning-${quranTextKeys[activeAssignment]}-basmala`;
-      const textKey = quranTextKeys[activeAssignment];
+      basmalaPanel.id = `meaning-${textKey}-basmala`;
       renderClickableWords(basmalaWords, reading.basmala, basmalaPanel, entries, null, surahText, textKey);
       basmala.append(basmalaWords, basmalaPanel);
       surahText.append(basmala);
     }
-    const textKey = quranTextKeys[activeAssignment];
     const verses = createElement("div", "verse-list");
     reading.verses.forEach((verse) => {
       const verseContainer = createElement("div", "verse-container");
