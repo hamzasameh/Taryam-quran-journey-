@@ -180,12 +180,51 @@ function renderClickableWords(target, text, panel, entries, verseNumber, root, t
         });
       }
 
-      // ② Tafsir (per-ayah) from e-Quran tafseer/saadi
+      // ② Tafsir (per-ayah) from e-Quran tafseer/saadi — words matching Quran words are highlighted
       if (hasTafsir) {
         const block   = createElement("div", "word-tafsir-entry");
         const heading = createElement("p", "tafsir-label", `تفسير الآية ${toArabicNumber(verseNumber)}`);
-        const body    = createElement("p", "tafsir-body",  tafsirEntry.text);
-        const src     = createElement("a", "meaning-source-tag", "تفسير السعدي · المصحف الإلكتروني");
+        const body    = createElement("p", "tafsir-body");
+
+        // Split tafsir text on whitespace, highlight tokens that match a Quran word in this ayah
+        tafsirEntry.text.split(/(\s+)/).forEach((token) => {
+          if (/^\s+$/.test(token)) {
+            body.append(document.createTextNode(token));
+            return;
+          }
+          const tokenMatches = getEntriesForWord(entries, verseNumber, token);
+          if (tokenMatches.length === 0) {
+            body.append(document.createTextNode(token));
+            return;
+          }
+          // Highlighted word inside tafsir
+          const hl = createElement("span", "tafsir-hl-word", token);
+          // Inline tooltip shown/hidden on click
+          const tip = createElement("span", "tafsir-hl-tip");
+          tip.hidden = true;
+          tokenMatches.forEach(({ entry }) => {
+            const row = createElement("span", "tafsir-tip-row");
+            row.append(
+              createElement("strong", "tafsir-tip-word", entry.word),
+              document.createTextNode(": "),
+              createElement("span", "tafsir-tip-meaning", entry.meaning)
+            );
+            tip.append(row);
+          });
+          const wrap = createElement("span", "tafsir-hl-wrap");
+          hl.addEventListener("click", (e) => {
+            e.stopPropagation();
+            // Close any other open tips in this panel
+            panel.querySelectorAll(".tafsir-hl-tip").forEach((t) => {
+              if (t !== tip) t.hidden = true;
+            });
+            tip.hidden = !tip.hidden;
+          });
+          wrap.append(hl, tip);
+          body.append(wrap);
+        });
+
+        const src = createElement("a", "meaning-source-tag", "تفسير السعدي · المصحف الإلكتروني");
         src.href   = tafsirEntry.url;
         src.target = "_blank";
         src.rel    = "noopener noreferrer";

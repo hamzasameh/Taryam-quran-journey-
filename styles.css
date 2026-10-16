@@ -393,7 +393,7 @@ a:focus-visible {
 
 .tafsir-body {
   margin: 0 0 4px;
-  line-height: 1.75;
+  line-height: 2;
 }
 
 .meaning-source-tag {
@@ -403,6 +403,60 @@ a:focus-visible {
   font-size: 11px;
   text-decoration: underline;
   text-underline-offset: 2px;
+}
+
+/* Highlighted Quran word inside the tafsir paragraph */
+.tafsir-hl-wrap {
+  display: inline;
+  position: relative;
+}
+
+.tafsir-hl-word {
+  padding: 1px 3px;
+  border-radius: 4px;
+  background: #fef3c7;
+  color: #78350f;
+  cursor: pointer;
+  font-weight: 700;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 2px;
+}
+
+.tafsir-hl-word:hover {
+  background: #fde68a;
+}
+
+/* Inline tooltip that appears below the highlighted word */
+.tafsir-hl-tip {
+  display: block;
+  margin: 3px 0 5px;
+  padding: 7px 10px;
+  border: 1px solid #e5c87a;
+  border-radius: 8px;
+  background: #fffbeb;
+  color: #44403c;
+  font-family: "Cairo", Tahoma, sans-serif;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.tafsir-tip-row {
+  display: block;
+}
+
+.tafsir-tip-row + .tafsir-tip-row {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid #e5c87a;
+}
+
+.tafsir-tip-word {
+  color: #92400e;
+}
+
+.tafsir-tip-meaning {
+  color: #44403c;
 }
 
 .meaning-reference,
