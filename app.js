@@ -120,6 +120,36 @@ function getTafsirForVerse(textKey, verseNumber) {
   return tafsirData?.[textKey]?.[String(verseNumber)] || null;
 }
 
+function appendHighlightedPhrase(container, phrase, matches, panel) {
+  const hl = createElement("span",
+    matches.length > 0 ? "tafsir-hl-word tafsir-hl-word--has-meaning" : "tafsir-hl-word",
+    phrase
+  );
+  if (matches.length > 0) {
+    const tip = createElement("span", "tafsir-hl-tip");
+    tip.hidden = true;
+    matches.forEach(({ entry }) => {
+      const row = createElement("span", "tafsir-tip-row");
+      row.append(
+        createElement("strong", "tafsir-tip-word", entry.word),
+        document.createTextNode(": "),
+        createElement("span", "tafsir-tip-meaning", entry.meaning)
+      );
+      tip.append(row);
+    });
+    const wrap = createElement("span", "tafsir-hl-wrap");
+    hl.addEventListener("click", (e) => {
+      e.stopPropagation();
+      panel.querySelectorAll(".tafsir-hl-tip").forEach((t) => { if (t !== tip) t.hidden = true; });
+      tip.hidden = !tip.hidden;
+    });
+    wrap.append(hl, tip);
+    container.append(wrap);
+  } else {
+    container.append(hl);
+  }
+}
+
 function renderClickableWords(target, text, panel, entries, verseNumber, root, textKey) {
   // Every word in a verse with tafsir is tappable — highlighted if it has a meaning entry,
   // plain-tappable (no highlight) if only tafsir is available.
@@ -181,68 +211,62 @@ function renderClickableWords(target, text, panel, entries, verseNumber, root, t
       }
 
       // ② Tafsir (per-ayah) from e-Quran tafseer/saadi
-      // Words inside { } are the Quran words being explained — highlight those
       if (hasTafsir) {
         const block   = createElement("div", "word-tafsir-entry");
         const heading = createElement("p", "tafsir-label", `تفسير الآية ${toArabicNumber(verseNumber)}`);
         const body    = createElement("p", "tafsir-body");
 
-        // Split on { ... } blocks to find Quran words cited in the tafsir
-        const parts = tafsirEntry.text.split(/(\{[^}]+\})/);
-        parts.forEach((part) => {
-          const braceMatch = part.match(/^\{([^}]+)\}$/);
-          if (!braceMatch) {
-            // Normal tafsir prose — plain text
-            body.append(document.createTextNode(part));
-            return;
-          }
+        const tafsirText = tafsirEntry.text;
+        const hasBraces  = tafsirText.includes("{");
 
-          // This is a Quran word/phrase cited inside { }
-          const quranPhrase = braceMatch[1].trim();
-
-          // Find meaning entries that match any word in this phrase
-          const phraseMatches = [];
-          quranPhrase.split(/\s+/).forEach((w) => {
-            getEntriesForWord(entries, verseNumber, w).forEach((m) => {
-              if (!phraseMatches.some((x) => x.entry.word === m.entry.word)) {
-                phraseMatches.push(m);
-              }
-            });
-          });
-
-          // Always show the phrase highlighted; tooltip only if there's a meaning
-          const hl = createElement("span",
-            phraseMatches.length > 0 ? "tafsir-hl-word tafsir-hl-word--has-meaning" : "tafsir-hl-word",
-            quranPhrase
-          );
-
-          if (phraseMatches.length > 0) {
-            const tip = createElement("span", "tafsir-hl-tip");
-            tip.hidden = true;
-            phraseMatches.forEach(({ entry }) => {
-              const row = createElement("span", "tafsir-tip-row");
-              row.append(
-                createElement("strong", "tafsir-tip-word", entry.word),
-                document.createTextNode(": "),
-                createElement("span", "tafsir-tip-meaning", entry.meaning)
-              );
-              tip.append(row);
-            });
-            const wrap = createElement("span", "tafsir-hl-wrap");
-            hl.addEventListener("click", (e) => {
-              e.stopPropagation();
-              panel.querySelectorAll(".tafsir-hl-tip").forEach((t) => {
-                if (t !== tip) t.hidden = true;
+        if (hasBraces) {
+          // Strategy A: tafsir uses { } to mark Quran words — split on those
+          tafsirText.split(/(\{[^}]+\})/).forEach((part) => {
+            const braceMatch = part.match(/^\{([^}]+)\}$/);
+            if (!braceMatch) {
+              body.append(document.createTextNode(part));
+              return;
+            }
+            const quranPhrase = braceMatch[1].trim();
+            const phraseMatches = [];
+            quranPhrase.split(/\s+/).forEach((w) => {
+              getEntriesForWord(entries, verseNumber, w).forEach((m) => {
+                if (!phraseMatches.some((x) => x.entry.word === m.entry.word)) phraseMatches.push(m);
               });
-              tip.hidden = !tip.hidden;
             });
-            wrap.append(hl, tip);
-            body.append(wrap);
-          } else {
-            // Highlight but no tooltip (Quran word but no meaning entry for this ayah)
-            body.append(hl);
-          }
-        });
+            appendHighlightedPhrase(body, quranPhrase, phraseMatches, panel);
+          });
+        } else {
+          // Strategy B: no braces — scan tafsir word by word and highlight
+          // any token that matches a word in the current verse
+          tafsirText.split(/(\s+)/).forEach((token) => {
+            if (/^\s+$/.test(token)) {
+              body.append(document.createTextNode(token));
+              return;
+            }
+            // Strip punctuation from token ends for matching
+            const clean = token.replace(/^[,،.:؟!؛]+|[,،.:؟!؛]+$/g, "");
+            const punctSuffix = token.slice(clean.length);
+            const tokenMatches = getEntriesForWord(entries, verseNumber, clean);
+            if (tokenMatches.length === 0) {
+              // Also try matching against the raw verse words (normalized)
+              const normClean = normalizeArabicText(clean);
+              const verseText = quranTextData[quranTextKeys[activeAssignment]]?.verses
+                .find(v => v.number === verseNumber)?.text || "";
+              const inVerse = verseText.split(/\s+/)
+                .some(vw => normalizeArabicText(vw) === normClean);
+              if (inVerse) {
+                appendHighlightedPhrase(body, clean, [], panel);
+                if (punctSuffix) body.append(document.createTextNode(punctSuffix));
+              } else {
+                body.append(document.createTextNode(token));
+              }
+            } else {
+              appendHighlightedPhrase(body, clean, tokenMatches, panel);
+              if (punctSuffix) body.append(document.createTextNode(punctSuffix));
+            }
+          });
+        }
 
         const src = createElement("a", "meaning-source-tag", "تفسير السعدي · المصحف الإلكتروني");
         src.href   = tafsirEntry.url;
