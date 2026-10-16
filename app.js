@@ -117,7 +117,7 @@ function getEntriesForWord(entries, verseNumber, word) {
 
 function getTafsirForVerse(textKey, verseNumber) {
   if (!textKey || verseNumber === null) return null;
-  return tafsirData?.[textKey]?.[verseNumber] || null;
+  return tafsirData?.[textKey]?.[String(verseNumber)] || null;
 }
 
 function renderClickableWords(target, text, panel, entries, verseNumber, root, textKey) {
