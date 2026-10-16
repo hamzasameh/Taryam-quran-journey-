@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f5f7f2">
+  <title>معاني القرآن الكريم</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="data.js" defer></script>
+  <script src="quran-text.js" defer></script>
+  <script src="tafsir-data.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="brand" href="#" aria-label="الصفحة الرئيسية">
+        <span class="brand-mark" aria-hidden="true">ق</span>
+        <span>
+          <strong>معاني القرآن الكريم</strong>
+          <small>مدرسة تريام الأمريكية الخاصة</small>
+        </span>
+      </a>
+    </div>
+  </header>
+
+  <main class="page-shell">
+    <h1 id="page-title">معاني كلمات القرآن الكريم</h1>
+    <nav class="mode-navigation" aria-label="وضع الموقع">
+      <button id="meanings-mode-tab" class="mode-tab" type="button" data-mode="meanings" aria-pressed="true">معاني الكلمات</button>
+      <button id="quiz-mode-tab" class="mode-tab" type="button" data-mode="quiz" aria-pressed="false" disabled>وضع الاختبار</button>
+    </nav>
+
+    <section class="selection-section" aria-labelledby="grades-title">
+      <h2 id="grades-title">اختر صفّك</h2>
+      <nav id="grade-navigation" class="grade-navigation" aria-label="الصفوف الدراسية"></nav>
+    </section>
+
+    <section id="surahs-section" class="selection-section" aria-labelledby="surahs-title" hidden>
+      <h2 id="surahs-title">اختر السورة أو الآية</h2>
+      <nav id="surah-navigation" class="surah-navigation" aria-label="السور والآيات المقررة"></nav>
+    </section>
+
+    <section id="lesson" class="lesson" aria-live="polite"></section>
+  </main>
+
+  <footer class="site-footer">
+    <a href="https://e-quran.com/indx-word.html" target="_blank" rel="noopener noreferrer">المصدر: المصحف الإلكتروني</a>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,523 @@
+@import url("https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap");
+
+:root {
+  color-scheme: light;
+  font-family: "Cairo", Tahoma, sans-serif;
+  color: #21352e;
+  background: #f4f8f2;
+  --green: #176b52;
+  --green-dark: #104d3c;
+  --muted: #65776d;
+  --line: #dfe9df;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+  background: #f4f8f2;
+}
+
+button,
+select,
+a {
+  font: inherit;
+}
+
+.header-inner,
+.page-shell,
+.site-footer {
+  width: min(680px, calc(100% - 28px));
+  margin-inline: auto;
+}
+
+.site-header {
+  border-bottom: 1px solid var(--line);
+  background: #fff;
+}
+
+.header-inner {
+  min-height: 64px;
+  display: flex;
+  align-items: center;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.brand-mark {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 11px;
+  background: var(--green);
+  color: #fff;
+  font-size: 23px;
+}
+
+.brand strong,
+.brand small {
+  display: block;
+}
+
+.brand strong {
+  font-size: 14px;
+}
+
+.brand small {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.page-shell {
+  padding-block: 24px 44px;
+}
+
+h1 {
+  margin: 0 0 16px;
+  font-size: 23px;
+}
+
+.mode-navigation {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 5px;
+  margin-bottom: 20px;
+  border-radius: 13px;
+  background: #e8efe7;
+}
+
+.mode-tab,
+.grade-button,
+.surah-button {
+  min-height: 42px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  color: #34483f;
+  cursor: pointer;
+  font: inherit;
+}
+
+.surah-button {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.surah-classification {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.surah-revelation-source {
+  display: inline-block;
+  margin: -4px 0 10px;
+  color: var(--muted);
+  font-family: "Cairo", Tahoma, sans-serif;
+  font-size: 13px;
+}
+
+.mode-tab {
+  border-color: transparent;
+  background: transparent;
+  font-weight: 700;
+}
+
+.mode-tab[aria-pressed="true"] {
+  background: var(--green);
+  color: #fff;
+}
+
+.mode-tab:disabled {
+  color: #8a9990;
+  cursor: not-allowed;
+}
+
+.selection-section {
+  margin-bottom: 18px;
+}
+
+.selection-section h2 {
+  margin: 0 0 10px;
+  font-size: 17px;
+}
+
+.grade-navigation {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.grade-button[aria-pressed="true"],
+.surah-button[aria-pressed="true"] {
+  border-color: var(--green);
+  background: #e5f1e8;
+  color: var(--green-dark);
+  font-weight: 800;
+}
+
+.surah-navigation {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+button:focus-visible,
+a:focus-visible {
+  outline: 3px solid #e6bd45;
+  outline-offset: 2px;
+}
+
+.mode-button {
+  min-height: 44px;
+  margin-top: 5px;
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--green);
+  color: #fff;
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.mode-button:disabled {
+  background: #a4b2aa;
+  cursor: not-allowed;
+}
+
+.mode-button,
+.next-button {
+  font: inherit;
+}
+
+.lesson {
+  margin-top: 14px;
+}
+
+.surah-text {
+  margin-bottom: 18px;
+}
+
+.surah-text h2 {
+  margin: 0 0 9px;
+  font-size: 18px;
+}
+
+.surah-text {
+  padding: 15px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: #fff;
+}
+
+.basmala {
+  margin: 0 0 10px;
+  color: var(--green-dark);
+  font-family: "Amiri", "Times New Roman", serif;
+  font-size: 23px;
+  text-align: center;
+}
+
+.verse-list {
+  color: #223c30;
+  font-family: "Amiri", "Times New Roman", serif;
+  font-size: 22px;
+  line-height: 2.2;
+  text-align: right;
+}
+
+.verse-container {
+  margin-bottom: 10px;
+}
+
+.quran-verse {
+  margin: 0;
+  line-height: 2.2;
+}
+
+/* Words with a verified e-Quran word meaning — gold highlight */
+.quran-word--has-meaning {
+  padding: 0 2px;
+  border: 0;
+  border-radius: 5px;
+  background: #fef3c7;
+  color: #78350f;
+  cursor: pointer;
+  font: inherit;
+  line-height: inherit;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 3px;
+}
+
+.quran-word--has-meaning:hover,
+.quran-word--has-meaning[aria-expanded="true"] {
+  background: #fde68a;
+}
+
+/* Words that only have tafsir (no word-level meaning) — subtle underline */
+.quran-word--tafsir-only {
+  padding: 0 1px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  line-height: inherit;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-decoration-color: #a3c4aa;
+  text-underline-offset: 3px;
+}
+
+.quran-word--tafsir-only:hover,
+.quran-word--tafsir-only[aria-expanded="true"] {
+  background: #e7f2e8;
+  border-radius: 4px;
+}
+
+/* Keep old class as alias in case anything still uses it */
+.quran-word {
+  padding: 0 1px;
+  border: 0;
+  border-radius: 5px;
+  background: #fef3c7;
+  color: #78350f;
+  cursor: pointer;
+  font: inherit;
+  line-height: inherit;
+}
+
+.quran-word--has-meaning:focus-visible,
+.quran-word--tafsir-only:focus-visible,
+.quran-word:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 2px;
+}
+
+.quran-verse-number {
+  display: inline-grid;
+  width: 25px;
+  height: 25px;
+  place-items: center;
+  margin-inline: 2px;
+  border: 1px solid #b8d3c3;
+  border-radius: 50%;
+  color: var(--green-dark);
+  font-family: "Cairo", Tahoma, sans-serif;
+  font-size: 11px;
+  line-height: 1;
+  vertical-align: middle;
+}
+
+.ayah-tafsir-link {
+  display: inline-block;
+  margin-inline: 4px;
+  color: var(--green-dark);
+  font-family: "Cairo", Tahoma, sans-serif;
+  font-size: 12px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  vertical-align: middle;
+}
+
+.word-meaning-panel {
+  margin: 2px 0 9px;
+  padding: 9px 12px;
+  border-inline-start: 3px solid var(--green);
+  border-radius: 8px;
+  background: #f2f7f1;
+  color: #34483f;
+  font-family: "Cairo", Tahoma, sans-serif;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.word-meaning-panel p {
+  margin: 3px 0 0;
+}
+
+.word-meaning-entry + .word-meaning-entry {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+
+.word-meaning-entry strong,
+.meaning-word-label {
+  color: var(--green-dark);
+}
+
+.meaning-word-text {
+  margin: 3px 0 0;
+}
+
+/* Tafsir block inside the tap panel */
+.word-tafsir-entry {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.word-meaning-entry:first-child + .word-tafsir-entry,
+.word-tafsir-entry:first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+}
+
+.tafsir-label {
+  margin: 0 0 4px;
+  color: var(--green);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.tafsir-body {
+  margin: 0 0 4px;
+  line-height: 1.75;
+}
+
+.meaning-source-tag {
+  display: inline-block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 11px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.meaning-reference,
+.empty-meanings {
+  display: block;
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.empty-meanings {
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  line-height: 1.7;
+}
+
+.quiz-card,
+.result-card {
+  padding: 17px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fff;
+}
+
+.quiz-progress {
+  margin: 0 0 6px;
+  color: var(--green);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.quiz-card h2,
+.result-card h2 {
+  margin: 0 0 5px;
+  font-size: 19px;
+}
+
+.answer-list {
+  display: grid;
+  gap: 7px;
+  margin-top: 12px;
+}
+
+.answer-button {
+  min-height: 44px;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fbfdf9;
+  cursor: pointer;
+  line-height: 1.6;
+  text-align: right;
+}
+
+.answer-button:disabled {
+  cursor: default;
+}
+
+.answer-button.answer-correct {
+  border-color: #62a37a;
+  background: #e7f5e9;
+}
+
+.answer-button.answer-wrong {
+  border-color: #d89589;
+  background: #fff0ed;
+}
+
+.quiz-feedback {
+  margin: 10px 0;
+  color: #9d4f40;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.quiz-feedback:empty {
+  display: none;
+}
+
+.quiz-feedback.feedback-correct {
+  color: var(--green);
+}
+
+.next-button {
+  width: 100%;
+}
+
+.result-card {
+  text-align: center;
+}
+
+.result-score {
+  margin: 7px 0;
+  color: var(--green-dark);
+  font-weight: 800;
+}
+
+.site-footer {
+  padding-block: 16px 24px;
+  font-size: 11px;
+  text-align: center;
+}
+
+.site-footer a {
+  color: var(--muted);
+}
+
+[hidden] {
+  display: none !important;
+}
+
+@media (max-width: 420px) {
+  .grade-navigation {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
