@@ -283,10 +283,18 @@ function renderClickableWords(target, text, panel, entries, verseNumber, root, t
 
 function renderGrades() {
   gradeNavigation.replaceChildren();
+  // Arabic ordinal numbers for grade badges
+  const ordinals = ["١","٢","٣","٤","٥","٦","٧","٨","٩","١٠","١١","١٢"];
   quranLearningData.grades.forEach((grade, index) => {
-    const button = createElement("button", "grade-button", grade.name);
+    const button = createElement("button", "grade-button");
     button.type = "button";
     button.setAttribute("aria-pressed", String(index === activeGradeIndex));
+    button.setAttribute("aria-label", grade.name);
+
+    const badge = createElement("span", "grade-badge", ordinals[index] || String(index + 1));
+    const label = createElement("span", "grade-label", "الصف");
+
+    button.append(badge, label);
     button.addEventListener("click", () => {
       activeGradeIndex = index;
       activeAssignment = null;
