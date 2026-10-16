@@ -180,48 +180,68 @@ function renderClickableWords(target, text, panel, entries, verseNumber, root, t
         });
       }
 
-      // ② Tafsir (per-ayah) from e-Quran tafseer/saadi — words matching Quran words are highlighted
+      // ② Tafsir (per-ayah) from e-Quran tafseer/saadi
+      // Words inside { } are the Quran words being explained — highlight those
       if (hasTafsir) {
         const block   = createElement("div", "word-tafsir-entry");
         const heading = createElement("p", "tafsir-label", `تفسير الآية ${toArabicNumber(verseNumber)}`);
         const body    = createElement("p", "tafsir-body");
 
-        // Split tafsir text on whitespace, highlight tokens that match a Quran word in this ayah
-        tafsirEntry.text.split(/(\s+)/).forEach((token) => {
-          if (/^\s+$/.test(token)) {
-            body.append(document.createTextNode(token));
+        // Split on { ... } blocks to find Quran words cited in the tafsir
+        const parts = tafsirEntry.text.split(/(\{[^}]+\})/);
+        parts.forEach((part) => {
+          const braceMatch = part.match(/^\{([^}]+)\}$/);
+          if (!braceMatch) {
+            // Normal tafsir prose — plain text
+            body.append(document.createTextNode(part));
             return;
           }
-          const tokenMatches = getEntriesForWord(entries, verseNumber, token);
-          if (tokenMatches.length === 0) {
-            body.append(document.createTextNode(token));
-            return;
-          }
-          // Highlighted word inside tafsir
-          const hl = createElement("span", "tafsir-hl-word", token);
-          // Inline tooltip shown/hidden on click
-          const tip = createElement("span", "tafsir-hl-tip");
-          tip.hidden = true;
-          tokenMatches.forEach(({ entry }) => {
-            const row = createElement("span", "tafsir-tip-row");
-            row.append(
-              createElement("strong", "tafsir-tip-word", entry.word),
-              document.createTextNode(": "),
-              createElement("span", "tafsir-tip-meaning", entry.meaning)
-            );
-            tip.append(row);
-          });
-          const wrap = createElement("span", "tafsir-hl-wrap");
-          hl.addEventListener("click", (e) => {
-            e.stopPropagation();
-            // Close any other open tips in this panel
-            panel.querySelectorAll(".tafsir-hl-tip").forEach((t) => {
-              if (t !== tip) t.hidden = true;
+
+          // This is a Quran word/phrase cited inside { }
+          const quranPhrase = braceMatch[1].trim();
+
+          // Find meaning entries that match any word in this phrase
+          const phraseMatches = [];
+          quranPhrase.split(/\s+/).forEach((w) => {
+            getEntriesForWord(entries, verseNumber, w).forEach((m) => {
+              if (!phraseMatches.some((x) => x.entry.word === m.entry.word)) {
+                phraseMatches.push(m);
+              }
             });
-            tip.hidden = !tip.hidden;
           });
-          wrap.append(hl, tip);
-          body.append(wrap);
+
+          // Always show the phrase highlighted; tooltip only if there's a meaning
+          const hl = createElement("span",
+            phraseMatches.length > 0 ? "tafsir-hl-word tafsir-hl-word--has-meaning" : "tafsir-hl-word",
+            quranPhrase
+          );
+
+          if (phraseMatches.length > 0) {
+            const tip = createElement("span", "tafsir-hl-tip");
+            tip.hidden = true;
+            phraseMatches.forEach(({ entry }) => {
+              const row = createElement("span", "tafsir-tip-row");
+              row.append(
+                createElement("strong", "tafsir-tip-word", entry.word),
+                document.createTextNode(": "),
+                createElement("span", "tafsir-tip-meaning", entry.meaning)
+              );
+              tip.append(row);
+            });
+            const wrap = createElement("span", "tafsir-hl-wrap");
+            hl.addEventListener("click", (e) => {
+              e.stopPropagation();
+              panel.querySelectorAll(".tafsir-hl-tip").forEach((t) => {
+                if (t !== tip) t.hidden = true;
+              });
+              tip.hidden = !tip.hidden;
+            });
+            wrap.append(hl, tip);
+            body.append(wrap);
+          } else {
+            // Highlight but no tooltip (Quran word but no meaning entry for this ayah)
+            body.append(hl);
+          }
         });
 
         const src = createElement("a", "meaning-source-tag", "تفسير السعدي · المصحف الإلكتروني");

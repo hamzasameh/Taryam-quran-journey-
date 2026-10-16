@@ -408,22 +408,28 @@ a:focus-visible {
 /* Highlighted Quran word inside the tafsir paragraph */
 .tafsir-hl-wrap {
   display: inline;
-  position: relative;
 }
 
+/* All { } words get a green highlight */
 .tafsir-hl-word {
-  padding: 1px 3px;
+  padding: 1px 4px;
   border-radius: 4px;
+  background: #d6ead9;
+  color: var(--green-dark);
+  font-weight: 700;
+}
+
+/* { } words that also have a meaning entry — gold, tappable */
+.tafsir-hl-word--has-meaning {
   background: #fef3c7;
   color: #78350f;
   cursor: pointer;
-  font-weight: 700;
   text-decoration: underline;
   text-decoration-style: dotted;
   text-underline-offset: 2px;
 }
 
-.tafsir-hl-word:hover {
+.tafsir-hl-word--has-meaning:hover {
   background: #fde68a;
 }
 
