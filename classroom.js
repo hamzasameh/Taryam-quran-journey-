@@ -165,6 +165,12 @@
     socket.addEventListener("message", (event) => {
       let data;
       try { data = JSON.parse(event.data); } catch { return; }
+      if (data.type === "kicked") {
+        socket.close();
+        session = { phase: "error", error: data.message || "أخرجك المعلّم من الغرفة قبل بدء اللعبة." };
+        render();
+        return;
+      }
       if (data.type === "error") {
         if (session && ["lobby", "playing"].includes(session.phase)) {
           session.messageError = data.message;
@@ -205,13 +211,16 @@
     });
   }
 
-  function playerList() {
+  function playerList(kickable = false) {
     const list = el("ul", "classroom-player-list");
     (session.players || []).forEach((player, index) => {
       const row = el("li", "classroom-player");
       row.append(el("span", "classroom-player__number", `${toArabic(index + 1)}.`),
         el("span", "", player.name),
         el("span", "classroom-player__points", `${toArabic(player.points || 0)} نقطة`));
+      if (kickable) {
+        row.append(actionButton("إخراج", () => send("kick", { playerId: player.id }), true));
+      }
       list.append(row);
     });
     return list;
@@ -221,7 +230,9 @@
 
   function renderLobby() {
     const card = panel(session.isHost ? "غرفتك جاهزة!" : `أهلًا ${session.selfName || "بك"}!`,
-      session.isHost ? "شارك هذا الرمز مع طلابك. ابدأ عندما يصبح الجميع جاهزين." : "انتظر حتى يبدأ المعلّم اللعبة.");
+      session.isHost
+        ? "شارك هذا الرمز مع طلابك. يمكنك إخراج طالب قبل البدء، ولن تشارك كلاعب."
+        : "انتظر حتى يبدأ المعلّم اللعبة.");
     const codeBox = el("div", "classroom-code-box");
     codeBox.append(el("span", "", "رمز الغرفة"), el("strong", "", session.code || "———"));
     if (session.isHost) {
@@ -229,8 +240,8 @@
         try { await navigator.clipboard.writeText(session.code); } catch { /* code remains visible */ }
       }, true));
     }
-    card.append(codeBox, el("p", "classroom-meta", `${session.gradeName || ""} · ${session.surah || ""}`),
-      el("h3", "classroom-subheading", `الطلاب المنضمون (${toArabic((session.players || []).length)})`), playerList());
+    card.append(codeBox, el("p", "classroom-meta", `${session.gradeName || ""} · ${session.surah || ""} · حتى ٥٠ طالبًا`),
+      el("h3", "classroom-subheading", `الطلاب المنضمون (${toArabic((session.players || []).length)})`), playerList(session.isHost));
     if (session.isHost) {
       const start = actionButton("ابدأ اللعبة", () => send("start"));
       start.disabled = (session.players || []).length === 0;

@@ -3,7 +3,7 @@ const { randomBytes, randomUUID } = require("node:crypto");
 const { WebSocketServer, WebSocket } = require("ws");
 
 const PORT = Number(process.env.PORT) || 10000;
-const MAX_PLAYERS = 35;
+const MAX_PLAYERS = 50;
 const MAX_ROOM_AGE_MS = 2 * 60 * 60 * 1000;
 const rooms = new Map();
 const peers = new Map();
@@ -178,6 +178,24 @@ function answer(peer, state, data) {
   }
 }
 
+function kickPlayer(peer, state, data) {
+  const room = rooms.get(state.roomCode);
+  if (!room || state.role !== "host") return error(peer, "المعلّم فقط يستطيع إخراج طالب.");
+  if (room.phase !== "lobby") return error(peer, "يمكن إخراج الطلاب قبل بدء اللعبة فقط.");
+  const player = room.players.find((item) => item.id === data.playerId);
+  if (!player) return error(peer, "لم نعثر على هذا الطالب في الغرفة.");
+  const targetPeer = [...peers].find(([, targetState]) =>
+    targetState.roomCode === room.code && targetState.role === "student" && targetState.playerId === player.id
+  )?.[0];
+  room.players = room.players.filter((item) => item.id !== player.id);
+  if (targetPeer) {
+    send(targetPeer, { type: "kicked", message: "أخرجك المعلّم من الغرفة قبل بدء اللعبة." });
+    peers.delete(targetPeer);
+    targetPeer.close();
+  }
+  sendRoom(room);
+}
+
 function nextTurn(peer, state) {
   const room = rooms.get(state.roomCode);
   if (!room || state.role !== "host") return error(peer, "المعلّم فقط يستطيع الانتقال للسؤال التالي.");
@@ -207,6 +225,7 @@ wss.on("connection", (peer) => {
     if (data.type === "start") return startGame(peer, state);
     if (data.type === "answer") return answer(peer, state, data);
     if (data.type === "next") return nextTurn(peer, state);
+    if (data.type === "kick") return kickPlayer(peer, state, data);
     error(peer, "هذا الإجراء غير متاح.");
   });
   peer.on("close", () => {
