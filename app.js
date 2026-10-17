@@ -423,11 +423,14 @@ function renderMeanings() {
       verses.querySelectorAll(".quran-verse-number[aria-expanded='true']").forEach((btn) => {
         if (btn !== numBtn) {
           btn.setAttribute("aria-expanded", "false");
-          btn.closest(".verse-container").querySelector(".ayah-meanings-panel").hidden = true;
+          const openVerse = btn.closest(".verse-container");
+          openVerse.classList.remove("verse-container--meaning-open");
+          openVerse.querySelector(".ayah-meanings-panel").hidden = true;
         }
       });
       numBtn.setAttribute("aria-expanded", String(!isOpen));
       panel.hidden = isOpen;
+      verseContainer.classList.toggle("verse-container--meaning-open", !isOpen);
     });
 
     verses.append(verseContainer);
