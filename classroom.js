@@ -61,6 +61,11 @@
     if (session.phase === "error") return renderRoles(session.error);
   }
 
+  function currentPlayer() {
+    const playerId = session?.turnOrder?.[session.turnIndex];
+    return session?.players?.find((player) => player.id === playerId) || null;
+  }
+
   function renderRoles(error = "") {
     const card = panel("لعبة الصف", "العبوا معًا في غرفة واحدة. اختاروا دوركم للبدء.");
     const roles = el("div", "classroom-role-grid");
@@ -161,26 +166,30 @@
       let data;
       try { data = JSON.parse(event.data); } catch { return; }
       if (data.type === "error") {
-        socket.close();
-        session = { phase: "error", error: data.message };
+        if (session && ["lobby", "playing"].includes(session.phase)) {
+          session.messageError = data.message;
+        } else {
+          socket.close();
+          session = { phase: "error", error: data.message };
+        }
         render();
         return;
       }
       if (data.type === "created" || data.type === "joined" || data.type === "room") {
         session = { ...session, ...data.room, phase: data.room.phase || "lobby", isHost: data.isHost ?? session?.isHost ?? false,
-          selfId: data.selfId || session?.selfId };
+          selfId: data.selfId || session?.selfId, messageError: "" };
         render();
       }
       if (data.type === "started") {
-        session = { ...session, ...data.room, phase: "playing" };
+        session = { ...session, ...data.room, phase: "playing", messageError: "" };
         render();
       }
       if (data.type === "answered") {
-        session = { ...session, ...data.room, lastAnswer: data.answer, phase: "playing" };
+        session = { ...session, ...data.room, lastAnswer: data.answer, phase: "playing", messageError: "" };
         render();
       }
       if (data.type === "finished") {
-        session = { ...session, ...data.room, phase: "finished" };
+        session = { ...session, ...data.room, phase: "finished", messageError: "" };
         render();
       }
     });
@@ -233,7 +242,7 @@
   }
 
   function renderTurn() {
-    const player = session.players?.[session.turnIndex];
+    const player = currentPlayer();
     if (!player) return renderResults();
     const card = panel(`دور ${player.name}!`, `السؤال ${toArabic(session.turnIndex + 1)} من ${toArabic(session.turnOrder?.length || 0)}`);
     const order = el("div", "classroom-turn-order");
@@ -269,6 +278,7 @@
     } else {
       card.append(statusLine(`السؤال الآن لـ ${player.name}.`));
     }
+    if (session.messageError) card.append(statusLine(session.messageError, "classroom-status--error"));
     if (session.isHost && (session.lastAnswer || session.turnIndex >= (session.turnOrder || []).length - 1)) {
       card.append(actionButton(session.turnIndex >= (session.turnOrder || []).length - 1 ? "عرض النتائج" : "اللاعب التالي",
         () => send("next")));
