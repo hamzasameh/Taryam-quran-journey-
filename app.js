@@ -85,6 +85,24 @@ function getMeaningEntries(assignment) {
   return quranLearningData.quizMeanings[assignment] || [];
 }
 
+function getTafsirQuestions(assignment) {
+  const textKey = quranTextKeys[assignment];
+  const reading = quranTextData[textKey];
+  if (!textKey || !reading) return [];
+  return reading.verses.flatMap((verse) => {
+    const tafsir = getTafsirForVerse(textKey, verse.number);
+    if (!tafsir?.text) return [];
+    const answer = tafsir.text.replace(/\{([^}]+)\}/g, "$1").replace(/\s+/g, " ").trim();
+    return [{
+      ayah: String(verse.number),
+      verse: verse.text,
+      prompt: "اشرح المعنى الذي يوضحه التفسير لهذه الآية.",
+      answer: answer.slice(0, 700),
+      sourceUrl: tafsir.url
+    }];
+  });
+}
+
 function getAyahTafsirUrl(assignment, ayahNumber) {
   const meaningPage = quranLearningData.surahs[assignment]?.meaningsSource
     || quranLearningData.meaningPages[assignment];
@@ -810,7 +828,7 @@ function setMode(mode) {
   });
   if (mode === "classroom") {
     lesson.replaceChildren();
-    window.classroomMode.render(lesson, quranLearningData.grades, getMeaningEntries);
+    window.classroomMode.render(lesson, quranLearningData.grades, getMeaningEntries, getTafsirQuestions);
     return;
   }
   if (!activeAssignment) {

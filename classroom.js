@@ -5,6 +5,7 @@
   let session = null;
   let lastGrades = [];
   let getEntries = () => [];
+  let getTafsirQuestions = () => [];
   let root = null;
 
   const el = (tag, className, text) => {
@@ -105,13 +106,14 @@
         return;
       }
       const entries = getEntries(surah);
-      if (!entries.length) {
+      const tafsirQuestions = shuffle(getTafsirQuestions(surah)).slice(0, 12);
+      if (!entries.length && !tafsirQuestions.length) {
         status.textContent = "لا تتوفر معانٍ كافية لهذه السورة في الموقع حتى الآن.";
         status.className = "classroom-status classroom-status--error";
         return;
       }
       connect(status, { type: "create", hostName, gradeName: grade.name, surah,
-        allowedSurahs: grade.assignments || [surah], questions: entries });
+        allowedSurahs: grade.assignments || [surah], questions: entries, tafsirQuestions });
     });
     gradeSelect.addEventListener("change", () => {
       surahSelect.replaceChildren(new Option("اختر السورة", ""));
@@ -184,15 +186,18 @@
       }
       if (data.type === "created" || data.type === "joined" || data.type === "room") {
         session = { ...session, ...data.room, phase: data.room.phase || "lobby", isHost: data.isHost ?? session?.isHost ?? false,
-          selfId: data.selfId || session?.selfId, messageError: "" };
+          selfId: data.selfId || session?.selfId, teacherAnswer: data.teacherAnswer || "",
+          teacherSourceUrl: data.teacherSourceUrl || "", messageError: "" };
         render();
       }
       if (data.type === "started") {
-        session = { ...session, ...data.room, phase: "playing", messageError: "" };
+        session = { ...session, ...data.room, phase: "playing", teacherAnswer: data.teacherAnswer || "",
+          teacherSourceUrl: data.teacherSourceUrl || "", messageError: "" };
         render();
       }
       if (data.type === "answered") {
-        session = { ...session, ...data.room, lastAnswer: data.answer, phase: "playing", messageError: "" };
+        session = { ...session, ...data.room, lastAnswer: data.answer, phase: "playing",
+          teacherAnswer: data.teacherAnswer || "", teacherSourceUrl: data.teacherSourceUrl || "", messageError: "" };
         render();
       }
       if (data.type === "finished") {
@@ -265,24 +270,53 @@
       order.append(chip);
     });
     const question = session.currentQuestion;
+    const canAnswer = question.type !== "tafsir" && player.id === session.selfId && !session.answered;
     const prompt = el("div", "classroom-question");
-    prompt.append(el("p", "classroom-question__reference", `${session.surah} · الآية ${question.ayah}`),
-      el("h3", "", `ما معنى «${question.word}»؟`));
-    const answers = el("div", "classroom-answer-list");
-    const canAnswer = player.id === session.selfId && !session.answered;
-    (question.choices || []).forEach((choice) => {
-      const button = actionButton(choice, () => send("answer", { choice }));
-      button.classList.add("classroom-answer");
-      button.disabled = !canAnswer;
-      answers.append(button);
-    });
-    prompt.append(answers);
+    prompt.append(el("p", "classroom-question__reference", `${session.surah} · الآية ${question.ayah}`));
+    if (question.type === "tafsir") {
+      prompt.append(el("p", "classroom-tafsir-label", "سؤال شفهي في التفسير"),
+        el("p", "classroom-tafsir-verse", question.verse || ""),
+        el("h3", "", question.prompt || "اشرح معنى هذه الآية."));
+      if (session.isHost) {
+        const answerReference = el("details", "classroom-teacher-answer");
+        answerReference.append(el("summary", "", "إجابة مرجعية للمعلم"),
+          el("p", "", session.teacherAnswer || "لا تتوفر إجابة مرجعية."));
+        if (session.teacherSourceUrl) {
+          const source = el("a", "meaning-source-tag", "المصدر: تفسير السعدي");
+          source.href = session.teacherSourceUrl;
+          source.target = "_blank";
+          source.rel = "noopener noreferrer";
+          answerReference.append(source);
+        }
+        prompt.append(answerReference);
+        if (!session.answered) {
+          prompt.append(actionButton("إجابة صحيحة", () => send("gradeOral", { correct: true })),
+            actionButton("إجابة غير صحيحة", () => send("gradeOral", { correct: false }), true));
+        }
+      }
+    } else {
+      prompt.append(el("h3", "", `ما معنى «${question.word}»؟`));
+      const answers = el("div", "classroom-answer-list");
+      (question.choices || []).forEach((choice) => {
+        const button = actionButton(choice, () => send("answer", { choice }));
+        button.classList.add("classroom-answer");
+        button.disabled = !canAnswer;
+        answers.append(button);
+      });
+      prompt.append(answers);
+    }
     card.append(order, prompt);
     if (session.lastAnswer) {
-      card.append(statusLine(session.lastAnswer.correct
-        ? `أحسنت يا ${session.lastAnswer.playerName}! إجابة صحيحة ونقطة جديدة ⭐`
-        : `الإجابة الصحيحة: ${session.lastAnswer.correctMeaning}`,
+      card.append(statusLine(session.lastAnswer.oral
+        ? (session.lastAnswer.correct
+          ? `أحسنت يا ${session.lastAnswer.playerName}! وافق المعلّم على إجابتك الشفهية ونقطة جديدة ⭐`
+          : `شكرًا على المحاولة يا ${session.lastAnswer.playerName}. استمع إلى توضيح المعلّم.`)
+        : session.lastAnswer.correct
+          ? `أحسنت يا ${session.lastAnswer.playerName}! إجابة صحيحة ونقطة جديدة ⭐`
+          : `الإجابة الصحيحة: ${session.lastAnswer.correctMeaning}`,
         session.lastAnswer.correct ? "classroom-status--success" : "classroom-status--error"));
+    } else if (question.type === "tafsir" && !session.isHost && player.id === session.selfId) {
+      card.append(statusLine("أجب شفهيًا أمام المعلّم، ثم انتظر التقييم."));
     } else if (canAnswer) {
       card.append(statusLine("اختر إجابتك من جهازك."));
     } else if (player.id === session.selfId) {
@@ -338,14 +372,15 @@
     const start = actionButton("ابدأ الجولة الجديدة", () => {
       const surah = select.value;
       const questions = getEntries(surah);
-      if (!surah || !questions.length) {
+      const tafsirQuestions = shuffle(getTafsirQuestions(surah)).slice(0, 12);
+      if (!surah || (!questions.length && !tafsirQuestions.length)) {
         status.textContent = "لا تتوفر أسئلة كافية لهذه السورة.";
         status.className = "classroom-status classroom-status--error";
         return;
       }
       start.disabled = true;
       status.textContent = "جارٍ بدء الجولة الجديدة…";
-      send("newRound", { surah, questions });
+      send("newRound", { surah, questions, tafsirQuestions });
     });
     card.append(field, start, status,
       actionButton("إلغاء", renderResults, true));
@@ -353,10 +388,11 @@
   }
 
   window.classroomMode = {
-    render(container, grades, entriesFor) {
+    render(container, grades, entriesFor, tafsirQuestionsFor) {
       root = container;
       lastGrades = grades;
       getEntries = entriesFor;
+      getTafsirQuestions = tafsirQuestionsFor || (() => []);
       render();
     }
   };

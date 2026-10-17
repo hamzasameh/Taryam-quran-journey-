@@ -54,13 +54,27 @@ function publicRoom(room) {
 }
 
 function sendRoom(room, type = "room") {
-  const view = publicRoom(room);
   for (const [peer, state] of peers) {
     if (state.roomCode === room.code) {
-      send(peer, { type, room: view, isHost: state.role === "host", selfId: state.playerId,
-        selfName: room.players.find((player) => player.id === state.playerId)?.name || room.hostName });
+      send(peer, roomMessage(room, state, type));
     }
   }
+}
+
+function roomMessage(room, state, type = "room", extra = {}) {
+  const message = {
+    type,
+    room: publicRoom(room),
+    isHost: state.role === "host",
+    selfId: state.playerId,
+    selfName: room.players.find((player) => player.id === state.playerId)?.name || room.hostName,
+    ...extra
+  };
+  if (state.role === "host" && room.currentQuestion?.type === "tafsir") {
+    message.teacherAnswer = room.currentAnswer;
+    message.teacherSourceUrl = room.currentSourceUrl;
+  }
+  return message;
 }
 
 function cleanName(value) {
@@ -76,6 +90,22 @@ function shuffle(items) {
   return result;
 }
 
+function sanitizeTafsirQuestions(value) {
+  if (!Array.isArray(value)) return [];
+  return value.filter((question) => question && typeof question.ayah === "string"
+      && typeof question.verse === "string" && typeof question.prompt === "string"
+      && typeof question.answer === "string")
+    .slice(0, 12)
+    .map((question) => ({
+      ayah: question.ayah.slice(0, 12),
+      verse: question.verse.slice(0, 500),
+      prompt: question.prompt.slice(0, 200),
+      answer: question.answer.slice(0, 700),
+      sourceUrl: typeof question.sourceUrl === "string" && question.sourceUrl.startsWith("https://e-quran.com/")
+        ? question.sourceUrl.slice(0, 300) : ""
+    }));
+}
+
 function createRoom(peer, data) {
   const hostName = cleanName(data.hostName);
   const gradeName = cleanName(data.gradeName);
@@ -86,7 +116,9 @@ function createRoom(peer, data) {
   const questions = Array.isArray(data.questions) ? data.questions.filter((q) =>
     q && typeof q.word === "string" && typeof q.meaning === "string" && typeof q.ayah === "string"
   ).slice(0, 200) : [];
-  if (!hostName || !gradeName || !surah || !allowedSurahs.includes(surah) || questions.length < 1) {
+  const tafsirQuestions = sanitizeTafsirQuestions(data.tafsirQuestions);
+  if (!hostName || !gradeName || !surah || !allowedSurahs.includes(surah)
+      || (questions.length < 1 && tafsirQuestions.length < 1)) {
     error(peer, "أكمل بيانات الغرفة، وتأكد من توفر معاني للسورة.");
     return;
   }
@@ -98,6 +130,7 @@ function createRoom(peer, data) {
     surah,
     allowedSurahs,
     questionBank: questions,
+    tafsirBank: tafsirQuestions,
     roundNumber: 1,
     phase: "lobby",
     players: [],
@@ -150,15 +183,26 @@ function beginTurn(room) {
     room.currentQuestion = null;
     return;
   }
-  const entry = shuffle(room.questionBank)[room.turnIndex % room.questionBank.length];
-  const distractors = shuffle([...new Set(room.questionBank.map((item) => item.meaning))]
-    .filter((meaning) => meaning !== entry.meaning)).slice(0, 3);
-  room.currentQuestion = {
-    word: entry.word.slice(0, 120),
-    ayah: entry.ayah.slice(0, 12),
-    choices: shuffle([entry.meaning, ...distractors.map((meaning) => meaning.slice(0, 300))])
-  };
-  room.currentAnswer = entry.meaning;
+  const useTafsir = room.tafsirBank.length > 0 && (room.questionBank.length === 0
+    || (room.turnOrder.length === 1 ? room.roundNumber % 2 === 0 : room.turnIndex % 2 === 1));
+  if (useTafsir) {
+    const entry = room.tafsirBank[Math.floor(room.turnIndex / 2) % room.tafsirBank.length];
+    room.currentQuestion = { type: "tafsir", ayah: entry.ayah, verse: entry.verse, prompt: entry.prompt };
+    room.currentAnswer = entry.answer;
+    room.currentSourceUrl = entry.sourceUrl;
+  } else {
+    const entry = shuffle(room.questionBank)[room.turnIndex % room.questionBank.length];
+    const distractors = shuffle([...new Set(room.questionBank.map((item) => item.meaning))]
+      .filter((meaning) => meaning !== entry.meaning)).slice(0, 3);
+    room.currentQuestion = {
+      type: "meaning",
+      word: entry.word.slice(0, 120),
+      ayah: entry.ayah.slice(0, 12),
+      choices: shuffle([entry.meaning, ...distractors.map((meaning) => meaning.slice(0, 300))])
+    };
+    room.currentAnswer = entry.meaning;
+    room.currentSourceUrl = "";
+  }
   room.currentPlayerId = player.id;
   room.answered = false;
   room.lastAnswer = null;
@@ -168,6 +212,7 @@ function answer(peer, state, data) {
   const room = rooms.get(state.roomCode);
   if (!room || room.phase !== "playing") return error(peer, "لا يوجد سؤال نشط الآن.");
   if (state.role !== "student" || state.playerId !== room.currentPlayerId) return error(peer, "انتظر دورك للإجابة.");
+  if (room.currentQuestion.type === "tafsir") return error(peer, "أجب عن سؤال التفسير شفهيًا أمام المعلّم.");
   if (room.answered) return error(peer, "تم تسجيل إجابة هذا السؤال بالفعل.");
   if (typeof data.choice !== "string" || !room.currentQuestion.choices.includes(data.choice)) return error(peer, "اختر إجابة من الخيارات الظاهرة.");
   const player = room.players.find((item) => item.id === state.playerId);
@@ -175,11 +220,27 @@ function answer(peer, state, data) {
   if (correct) player.points += 1;
   room.answered = true;
   room.lastAnswer = { correct, correctMeaning: room.currentAnswer, playerName: player.name };
-  const view = publicRoom(room);
   for (const [connectedPeer, connectedState] of peers) {
     if (connectedState.roomCode === room.code) {
-      send(connectedPeer, { type: "answered", room: view, isHost: connectedState.role === "host",
-        selfId: connectedState.playerId, selfName: player.name, answer: room.lastAnswer });
+      send(connectedPeer, roomMessage(room, connectedState, "answered", { answer: room.lastAnswer }));
+    }
+  }
+}
+
+function gradeOral(peer, state, data) {
+  const room = rooms.get(state.roomCode);
+  if (!room || state.role !== "host") return error(peer, "المعلّم فقط يستطيع تقييم الإجابة الشفهية.");
+  if (room.phase !== "playing" || room.currentQuestion?.type !== "tafsir") return error(peer, "لا يوجد سؤال تفسير شفهي نشط.");
+  if (room.answered) return error(peer, "تم تقييم هذه الإجابة بالفعل.");
+  if (typeof data.correct !== "boolean") return error(peer, "اختر تقييم الإجابة.");
+  const player = room.players.find((item) => item.id === room.currentPlayerId);
+  if (!player) return error(peer, "لم نعثر على الطالب صاحب الدور.");
+  if (data.correct) player.points += 1;
+  room.answered = true;
+  room.lastAnswer = { oral: true, correct: data.correct, playerName: player.name };
+  for (const [connectedPeer, connectedState] of peers) {
+    if (connectedState.roomCode === room.code) {
+      send(connectedPeer, roomMessage(room, connectedState, "answered", { answer: room.lastAnswer }));
     }
   }
 }
@@ -227,10 +288,12 @@ function newRound(peer, state, data) {
   const questions = Array.isArray(data.questions) ? data.questions.filter((q) =>
     q && typeof q.word === "string" && typeof q.meaning === "string" && typeof q.ayah === "string"
   ).slice(0, 200) : [];
-  if (questions.length < 1) return error(peer, "لا تتوفر أسئلة لهذه السورة.");
+  const tafsirQuestions = sanitizeTafsirQuestions(data.tafsirQuestions);
+  if (questions.length < 1 && tafsirQuestions.length < 1) return error(peer, "لا تتوفر أسئلة لهذه السورة.");
 
   room.surah = surah;
   room.questionBank = questions;
+  room.tafsirBank = tafsirQuestions;
   room.roundNumber += 1;
   room.players.forEach((player) => { player.points = 0; });
   room.turnOrder = shuffle(room.players.map((player) => player.id));
@@ -252,6 +315,7 @@ wss.on("connection", (peer) => {
     if (!state.roomCode) return error(peer, "أنشئ غرفة أو انضم إلى غرفة أولًا.");
     if (data.type === "start") return startGame(peer, state);
     if (data.type === "answer") return answer(peer, state, data);
+    if (data.type === "gradeOral") return gradeOral(peer, state, data);
     if (data.type === "next") return nextTurn(peer, state);
     if (data.type === "newRound") return newRound(peer, state, data);
     if (data.type === "kick") return kickPlayer(peer, state, data);
