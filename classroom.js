@@ -110,7 +110,8 @@
         status.className = "classroom-status classroom-status--error";
         return;
       }
-      connect(status, { type: "create", hostName, gradeName: grade.name, surah, questions: entries });
+      connect(status, { type: "create", hostName, gradeName: grade.name, surah,
+        allowedSurahs: grade.assignments || [surah], questions: entries });
     });
     gradeSelect.addEventListener("change", () => {
       surahSelect.replaceChildren(new Option("اختر السورة", ""));
@@ -255,7 +256,7 @@
   function renderTurn() {
     const player = currentPlayer();
     if (!player) return renderResults();
-    const card = panel(`دور ${player.name}!`, `السؤال ${toArabic(session.turnIndex + 1)} من ${toArabic(session.turnOrder?.length || 0)}`);
+    const card = panel(`دور ${player.name}!`, `الجولة ${toArabic(session.roundNumber || 1)} · السؤال ${toArabic(session.turnIndex + 1)} من ${toArabic(session.turnOrder?.length || 0)}`);
     const order = el("div", "classroom-turn-order");
     order.append(el("span", "classroom-turn-order__label", "ترتيب اللعب"));
     (session.turnOrder || []).forEach((playerId, index) => {
@@ -304,7 +305,7 @@
     const players = [...(session.players || [])].sort((a, b) => b.points - a.points || a.name.localeCompare(b.name, "ar"));
     const topScore = players[0]?.points || 0;
     const winners = players.filter((player) => player.points === topScore);
-    const card = panel("انتهت اللعبة!", winners.length > 1
+    const card = panel(`انتهت الجولة ${toArabic(session.roundNumber || 1)}!`, winners.length > 1
       ? `تعادل رائع بين ${winners.map((player) => player.name).join(" و ")}!`
       : `البطل / البطلة: ${winners[0]?.name || ""} 🏆`);
     const list = el("ol", "classroom-leaderboard");
@@ -313,7 +314,41 @@
       row.append(el("span", "", `${toArabic(index + 1)}. ${player.name}`), el("strong", "", `${toArabic(player.points)} نقطة`));
       list.append(row);
     });
-    card.append(list, actionButton("العودة إلى لعبة الصف", () => { session = null; socket?.close(); render(); }));
+    card.append(list);
+    if (session.isHost) {
+      card.append(actionButton("العب جولة أخرى", renderNewRoundForm));
+    } else {
+      card.append(statusLine("انتظر المعلّم إذا أراد بدء جولة أخرى."));
+    }
+    card.append(actionButton("العودة إلى لعبة الصف", () => { session = null; socket?.close(); render(); }, true));
+    root.replaceChildren(card);
+  }
+
+  function renderNewRoundForm() {
+    const grade = lastGrades.find((item) => item.name === session.gradeName);
+    const card = panel("جولة جديدة", "اختر السورة نفسها أو اختر سورة أخرى من مقررات الصف. ستبدأ الجولة مع الطلاب الموجودين في الغرفة.");
+    const field = el("label", "classroom-field");
+    field.append(el("span", "", "سورة الجولة الجديدة"));
+    const select = el("select");
+    select.append(new Option("اختر السورة", ""));
+    (grade?.assignments || [session.surah]).forEach((surah) => select.append(new Option(surah, surah)));
+    select.value = session.surah;
+    field.append(select);
+    const status = statusLine("");
+    const start = actionButton("ابدأ الجولة الجديدة", () => {
+      const surah = select.value;
+      const questions = getEntries(surah);
+      if (!surah || !questions.length) {
+        status.textContent = "لا تتوفر أسئلة كافية لهذه السورة.";
+        status.className = "classroom-status classroom-status--error";
+        return;
+      }
+      start.disabled = true;
+      status.textContent = "جارٍ بدء الجولة الجديدة…";
+      send("newRound", { surah, questions });
+    });
+    card.append(field, start, status,
+      actionButton("إلغاء", renderResults, true));
     root.replaceChildren(card);
   }
 

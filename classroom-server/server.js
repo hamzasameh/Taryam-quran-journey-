@@ -42,6 +42,7 @@ function publicRoom(room) {
     hostName: room.hostName,
     gradeName: room.gradeName,
     surah: room.surah,
+    roundNumber: room.roundNumber,
     phase: room.phase,
     players: room.players.map(({ id, name, points }) => ({ id, name, points })),
     turnOrder: room.turnOrder,
@@ -79,10 +80,13 @@ function createRoom(peer, data) {
   const hostName = cleanName(data.hostName);
   const gradeName = cleanName(data.gradeName);
   const surah = cleanName(data.surah);
+  const allowedSurahs = Array.isArray(data.allowedSurahs)
+    ? [...new Set(data.allowedSurahs.map(cleanName).filter(Boolean))].slice(0, 30)
+    : [surah];
   const questions = Array.isArray(data.questions) ? data.questions.filter((q) =>
     q && typeof q.word === "string" && typeof q.meaning === "string" && typeof q.ayah === "string"
   ).slice(0, 200) : [];
-  if (!hostName || !gradeName || !surah || questions.length < 1) {
+  if (!hostName || !gradeName || !surah || !allowedSurahs.includes(surah) || questions.length < 1) {
     error(peer, "أكمل بيانات الغرفة، وتأكد من توفر معاني للسورة.");
     return;
   }
@@ -92,7 +96,9 @@ function createRoom(peer, data) {
     hostName,
     gradeName,
     surah,
+    allowedSurahs,
     questionBank: questions,
+    roundNumber: 1,
     phase: "lobby",
     players: [],
     turnOrder: [],
@@ -212,6 +218,28 @@ function nextTurn(peer, state) {
   sendRoom(room);
 }
 
+function newRound(peer, state, data) {
+  const room = rooms.get(state.roomCode);
+  if (!room || state.role !== "host") return error(peer, "المعلّم فقط يستطيع بدء جولة جديدة.");
+  if (room.phase !== "finished") return error(peer, "يجب إنهاء الجولة الحالية أولًا.");
+  const surah = cleanName(data.surah);
+  if (!room.allowedSurahs.includes(surah)) return error(peer, "اختر سورة من مقررات الصف.");
+  const questions = Array.isArray(data.questions) ? data.questions.filter((q) =>
+    q && typeof q.word === "string" && typeof q.meaning === "string" && typeof q.ayah === "string"
+  ).slice(0, 200) : [];
+  if (questions.length < 1) return error(peer, "لا تتوفر أسئلة لهذه السورة.");
+
+  room.surah = surah;
+  room.questionBank = questions;
+  room.roundNumber += 1;
+  room.players.forEach((player) => { player.points = 0; });
+  room.turnOrder = shuffle(room.players.map((player) => player.id));
+  room.turnIndex = 0;
+  room.phase = "playing";
+  beginTurn(room);
+  sendRoom(room, "started");
+}
+
 wss.on("connection", (peer) => {
   peers.set(peer, {});
   peer.on("message", (raw) => {
@@ -225,6 +253,7 @@ wss.on("connection", (peer) => {
     if (data.type === "start") return startGame(peer, state);
     if (data.type === "answer") return answer(peer, state, data);
     if (data.type === "next") return nextTurn(peer, state);
+    if (data.type === "newRound") return newRound(peer, state, data);
     if (data.type === "kick") return kickPlayer(peer, state, data);
     error(peer, "هذا الإجراء غير متاح.");
   });
