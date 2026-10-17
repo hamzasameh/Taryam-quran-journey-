@@ -9,7 +9,6 @@ const gradeHint = document.querySelector("#grade-hint");
 const surahHint = document.querySelector("#surah-hint");
 const homeButton = document.querySelector("#home-button");
 const progressStorageKey = "taryam-quran-progress-v1";
-const reflectionsStorageKey = "taryam-quran-reflections-v1";
 const quranTextKeys = {
   الفاتحة: "fatiha",
   الإخلاص: "ikhlas",
@@ -46,7 +45,6 @@ let questionIndex = 0;
 let score = 0;
 let answered = false;
 let reviewProgress = loadLocalData(progressStorageKey);
-let studentReflections = loadLocalData(reflectionsStorageKey);
 
 function loadLocalData(key) {
   try {
@@ -454,7 +452,11 @@ function renderSurahs() {
     }
     const reviewedCount = getReviewedCount(assignment);
     if (reviewedCount > 0) {
-      button.append(createElement("span", "surah-progress", `${toArabicNumber(reviewedCount)} تمت مراجعتها`));
+      const verseCount = quranTextData[quranTextKeys[assignment]]?.verses.length || 0;
+      const completed = verseCount > 0 && reviewedCount >= verseCount;
+      button.append(createElement("span", "surah-progress", completed
+        ? "⭐ أتممتها!"
+        : `⭐ ${toArabicNumber(reviewedCount)} تمت مراجعتها`));
     }
     button.addEventListener("click", () => {
       activeAssignment = assignment;
@@ -468,48 +470,6 @@ function renderSurahs() {
     });
     surahNavigation.append(button);
   });
-}
-
-function renderStudySupport(assignment) {
-  const support = createElement("section", "study-support");
-  const notesSection = createElement("div", "teacher-notes");
-  notesSection.append(createElement("h2", "support-heading", "ملاحظات المعلمة"));
-  const approvedNotes = quranLearningData.teacherNotes?.[assignment] || [];
-  if (approvedNotes.length > 0) {
-    const list = createElement("ul", "teacher-notes-list");
-    approvedNotes.forEach((note) => list.append(createElement("li", "", note)));
-    notesSection.append(list);
-  } else {
-    notesSection.append(createElement("p", "teacher-notes-empty", "ستظهر هنا ملاحظات المعلمة بعد إضافتها ومراجعتها."));
-  }
-
-  const reflectionSection = createElement("div", "reflection-card");
-  reflectionSection.append(
-    createElement("h2", "support-heading", "تأمّل وتذكّر"),
-    createElement("p", "reflection-prompt", "ما الكلمة الجديدة التي تعلمتها اليوم؟ وما السؤال الذي تريد أن تسأله للمعلمة؟")
-  );
-  const reflection = document.createElement("textarea");
-  reflection.className = "reflection-input";
-  reflection.rows = 3;
-  reflection.maxLength = 500;
-  reflection.placeholder = "اكتب ملاحظتك هنا؛ ستُحفظ على هذا الجهاز فقط.";
-  reflection.setAttribute("aria-label", `ملاحظتك عن ${assignment}`);
-  reflection.value = studentReflections[assignment] || "";
-  const saveButton = createElement("button", "mode-button reflection-save", "حفظ ملاحظتي");
-  saveButton.type = "button";
-  const status = createElement("span", "reflection-status");
-  status.setAttribute("role", "status");
-  saveButton.addEventListener("click", () => {
-    const text = reflection.value.trim();
-    if (text) studentReflections[assignment] = text;
-    else delete studentReflections[assignment];
-    status.textContent = saveLocalData(reflectionsStorageKey, studentReflections)
-      ? "حُفظت على هذا الجهاز."
-      : "تعذّر الحفظ في هذا المتصفح.";
-  });
-  reflectionSection.append(reflection, saveButton, status);
-  support.append(notesSection, reflectionSection);
-  lesson.append(support);
 }
 
 homeButton.addEventListener("click", () => {
@@ -560,7 +520,9 @@ function renderMeanings() {
   audioLink.setAttribute("aria-label", `افتح صفحة ${activeAssignment} في المصحف الإلكتروني للاستماع`);
   lessonToolbar.append(audioLink);
   const reviewedCount = getReviewedCount(activeAssignment);
-  const progressLabel = createElement("span", "lesson-progress", `مراجعة الآيات على هذا الجهاز: ${toArabicNumber(reviewedCount)} / ${toArabicNumber(reading.verses.length)}`);
+  const progressLabel = createElement("span", "lesson-progress", reviewedCount >= reading.verses.length
+    ? `أحسنت! أتممت مراجعة السورة ⭐ ${toArabicNumber(reviewedCount)} / ${toArabicNumber(reading.verses.length)}`
+    : `نجوم المراجعة: ${toArabicNumber(reviewedCount)} / ${toArabicNumber(reading.verses.length)} ⭐`);
   progressLabel.setAttribute("role", "status");
   lessonToolbar.append(progressLabel);
   surahText.append(lessonToolbar);
@@ -643,7 +605,10 @@ function renderMeanings() {
       reviewProgress[activeAssignment][verse.number] = reviewCheckbox.checked;
       if (!reviewCheckbox.checked) delete reviewProgress[activeAssignment][verse.number];
       saveLocalData(progressStorageKey, reviewProgress);
-      progressLabel.textContent = `مراجعة الآيات على هذا الجهاز: ${toArabicNumber(getReviewedCount(activeAssignment))} / ${toArabicNumber(reading.verses.length)}`;
+      const count = getReviewedCount(activeAssignment);
+      progressLabel.textContent = count >= reading.verses.length
+        ? `أحسنت! أتممت مراجعة السورة ⭐ ${toArabicNumber(count)} / ${toArabicNumber(reading.verses.length)}`
+        : `نجوم المراجعة: ${toArabicNumber(count)} / ${toArabicNumber(reading.verses.length)} ⭐`;
       renderSurahs();
     });
     line.append(reviewLabel);
@@ -731,8 +696,6 @@ function renderMeanings() {
     lesson.append(tafsirSection);
   }
 
-  renderStudySupport(activeAssignment);
-
   document.querySelector("#quiz-mode-tab").disabled = entries.length === 0;
 }
 
@@ -804,8 +767,16 @@ function renderQuizQuestion() {
 function renderQuizResult() {
   lesson.replaceChildren();
   const card = createElement("div", "result-card");
+  const stars = Math.round((score / quizQuestions.length) * 5);
+  const praise = score === quizQuestions.length
+    ? "ممتاز! أنت نجم القرآن!"
+    : score > 0
+      ? "أحسنت! كل محاولة تزيدك معرفة."
+      : "لا بأس، جرّب مرة أخرى وستنجح!";
   card.append(
+    createElement("div", "result-stars", stars ? "⭐ ".repeat(stars).trim() : "✨"),
     createElement("h2", "", "انتهى الاختبار"),
+    createElement("p", "result-praise", praise),
     createElement("p", "result-score", `نتيجتك: ${score} من ${quizQuestions.length}`)
   );
   const retryButton = createElement("button", "mode-button", "أعد الاختبار");

@@ -886,8 +886,7 @@ a:focus-visible {
   font-weight: 800;
 }
 
-.search-section input,
-.reflection-input {
+.search-section input {
   width: 100%;
   padding: 10px 12px;
   border: 1px solid var(--line-soft);
@@ -897,8 +896,7 @@ a:focus-visible {
   font: inherit;
 }
 
-.search-section input:focus,
-.reflection-input:focus {
+.search-section input:focus {
   outline: 2px solid var(--gold);
   outline-offset: 1px;
   border-color: var(--gold);
@@ -1047,34 +1045,8 @@ a:focus-visible {
 .review-toggle input { accent-color: var(--green); }
 .review-toggle:has(input:checked) { border-color: #a7cbb2; background: #e7f5e9; color: var(--green-dark); }
 
-.study-support {
-  display: grid;
-  grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr);
-  gap: 12px;
-  margin-top: 18px;
-}
-
-.teacher-notes,
-.reflection-card {
-  padding: 15px;
-  border: 1px solid var(--line-soft);
-  border-radius: 15px;
-  background: #fff;
-}
-
-.teacher-notes { border-top: 3px solid var(--green); }
-.reflection-card { border-top: 3px solid var(--gold); }
-.support-heading { margin: 0 0 7px; color: var(--green-dark); font-size: 16px; }
-.teacher-notes-empty,
-.reflection-prompt { margin: 0 0 10px; color: var(--muted); font-size: 12px; line-height: 1.8; }
-.teacher-notes-list { margin: 0; padding-inline-start: 20px; line-height: 1.8; }
-.reflection-input { display: block; resize: vertical; font-size: 13px; }
-.reflection-save { width: 100%; min-height: 38px; margin-top: 8px; font-size: 13px; }
-.reflection-status { display: block; min-height: 20px; margin-top: 5px; color: var(--green); font-size: 11px; }
-
 @media (max-width: 560px) {
   .grade-navigation { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .study-support { grid-template-columns: 1fr; }
   .surah-navigation { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .surah-button { padding-inline: 8px; }
   .quran-verse { align-items: flex-start; }
@@ -1084,4 +1056,127 @@ a:focus-visible {
   .surah-navigation { grid-template-columns: 1fr; }
   .lesson-toolbar { align-items: stretch; }
   .audio-source-button { justify-content: center; }
+}
+
+/* A brighter, welcoming journey for young learners */
+.welcome-banner {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 102px;
+  overflow: hidden;
+  margin: 0 0 17px;
+  padding: 15px 18px;
+  border: 1px solid rgba(201,168,76,.55);
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at 15% 20%, rgba(255,255,255,.12) 0 2px, transparent 3px) 0 0 / 26px 26px,
+    linear-gradient(125deg, #154b39, #247354 58%, #2e8061);
+  color: #fff;
+  box-shadow: 0 6px 18px rgba(15,61,45,.16);
+}
+
+.welcome-banner::after {
+  content: "۞";
+  position: absolute;
+  inset-inline-end: 17%;
+  top: -32px;
+  color: rgba(255,255,255,.08);
+  font-size: 150px;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.welcome-emblem {
+  z-index: 1;
+  width: 54px;
+  height: 54px;
+  flex: 0 0 54px;
+  padding: 8px;
+  border: 1px solid rgba(240,217,138,.6);
+  border-radius: 50%;
+  background: rgba(255,255,255,.11);
+  color: var(--gold-light);
+}
+
+.welcome-message { z-index: 1; }
+.welcome-kicker { margin: 0 0 3px; color: #fff5cb; font-size: 18px; font-weight: 800; }
+.welcome-copy { margin: 0; color: rgba(255,255,255,.9); font-size: 13px; }
+.welcome-sparkles { z-index: 1; margin-inline-start: auto; color: var(--gold-light); font-size: 17px; letter-spacing: .12em; }
+
+.mode-navigation { border-color: #d6c58f; background: #f5edda; }
+.mode-tab { min-height: 46px; }
+
+.grade-button {
+  position: relative;
+  overflow: hidden;
+  border-color: #e7dec6;
+  background: linear-gradient(150deg, #fff, #fffaf0);
+  box-shadow: 0 3px 9px rgba(36,107,80,.08);
+}
+
+.grade-button::after {
+  content: "✦";
+  position: absolute;
+  inset-inline-end: 8px;
+  top: 5px;
+  color: rgba(201,168,76,.55);
+  font-size: 12px;
+}
+
+.grade-button:nth-child(3n + 2) { background: linear-gradient(150deg, #fff, #f0f8f1); }
+.grade-button:nth-child(3n) { background: linear-gradient(150deg, #fff, #f2f7fb); }
+.grade-button[aria-pressed="true"] { background: linear-gradient(145deg, #247354, #0f3d2d); }
+.grade-button:hover { transform: translateY(-2px); }
+.grade-button,
+.surah-button { transition: transform 150ms ease, border-color 150ms ease, box-shadow 150ms ease, background 150ms ease; }
+
+.surah-button {
+  position: relative;
+  overflow: hidden;
+  border-color: #e4dbc3;
+  box-shadow: 0 3px 10px rgba(36,107,80,.07);
+}
+
+.surah-button::before {
+  content: "۞";
+  position: absolute;
+  inset-inline-start: 8px;
+  top: 5px;
+  color: rgba(201,168,76,.32);
+  font-size: 15px;
+}
+
+.surah-button:hover { transform: translateY(-2px); }
+.surah-button[aria-pressed="true"] { background: linear-gradient(135deg, #247354, #0f3d2d); }
+.surah-progress { padding: 2px 7px; border-radius: 20px; background: #fff5d7; color: #76540b; }
+
+.search-section { border-color: #d9c98f; background: linear-gradient(135deg, #fffefa, #f4f8f1); }
+.search-section label::before { content: "⌕ "; color: var(--green); font-size: 18px; }
+.surah-text { background: linear-gradient(180deg, #fff 0%, #fffdf7 100%); }
+.verse-container { border-inline-start: 3px solid #d4e4d6; background: linear-gradient(110deg, #fff 0%, #fffdf7 100%); }
+.verse-container--meaning-open { border-inline-start-color: var(--gold); background: #f2f8f2; }
+.quran-word--has-meaning { border-radius: 8px; background: #fff0bb; }
+.quran-word--has-meaning:hover,
+.quran-word--has-meaning[aria-expanded="true"] { background: #ffe18a; }
+.audio-source-button { border-radius: 24px; box-shadow: 0 2px 6px rgba(36,107,80,.08); }
+.review-toggle:has(input:checked) { box-shadow: 0 2px 7px rgba(36,107,80,.1); }
+.quiz-card,
+.result-card { background: linear-gradient(145deg, #fff, #fffaf0); }
+.result-stars { margin-bottom: 6px; color: #b78b19; font-size: 27px; letter-spacing: .06em; }
+.result-praise { margin: 8px 0 4px; color: var(--green); font-size: 16px; font-weight: 800; }
+.answer-button { min-height: 50px; border-radius: 14px; background: #fffdf7; }
+.answer-button.answer-correct { box-shadow: inset 0 0 0 1px #62a37a; }
+
+@media (max-width: 480px) {
+  .welcome-banner { min-height: 88px; gap: 10px; padding: 12px; }
+  .welcome-emblem { width: 44px; height: 44px; flex-basis: 44px; }
+  .welcome-kicker { font-size: 16px; }
+  .welcome-copy { font-size: 11px; }
+  .welcome-sparkles { font-size: 12px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; }
 }
