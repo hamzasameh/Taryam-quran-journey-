@@ -168,11 +168,17 @@ function startGame(peer, state) {
   if (!room || state.role !== "host") return error(peer, "المعلّم فقط يستطيع بدء اللعبة.");
   if (room.phase !== "lobby") return error(peer, "بدأت هذه اللعبة بالفعل.");
   if (room.players.length < 1) return error(peer, "انتظر انضمام طالب واحد على الأقل.");
-  room.turnOrder = shuffle(room.players.map((player) => player.id));
+  room.turnOrder = makeTurnOrder(room);
   room.phase = "playing";
   room.turnIndex = 0;
   beginTurn(room);
   sendRoom(room, "started");
+}
+
+function makeTurnOrder(room) {
+  const order = shuffle(room.players.map((player) => player.id));
+  if (order.length === 1 && room.questionBank.length && room.tafsirBank.length) order.push(order[0]);
+  return order;
 }
 
 function beginTurn(room) {
@@ -296,7 +302,7 @@ function newRound(peer, state, data) {
   room.tafsirBank = tafsirQuestions;
   room.roundNumber += 1;
   room.players.forEach((player) => { player.points = 0; });
-  room.turnOrder = shuffle(room.players.map((player) => player.id));
+  room.turnOrder = makeTurnOrder(room);
   room.turnIndex = 0;
   room.phase = "playing";
   beginTurn(room);

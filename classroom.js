@@ -350,7 +350,7 @@
     });
     card.append(list);
     if (session.isHost) {
-      card.append(actionButton("العب جولة أخرى", renderNewRoundForm));
+      card.append(actionButton("جولة أخرى مع الطلاب أنفسهم", renderNewRoundForm));
     } else {
       card.append(statusLine("انتظر المعلّم إذا أراد بدء جولة أخرى."));
     }
