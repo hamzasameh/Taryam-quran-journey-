@@ -379,7 +379,7 @@ function renderSearchResults() {
       activeGradeIndex = gradeIndex;
       activeAssignment = assignment;
       surahsSection.hidden = false;
-      document.querySelector("#quiz-mode-tab").disabled = getMeaningEntries(assignment).length === 0;
+      document.querySelector("#solo-quiz-mode-tab").disabled = getMeaningEntries(assignment).length === 0;
       setMode("meanings");
       renderGrades();
       renderSurahs();
@@ -423,7 +423,7 @@ function renderGrades() {
     button.addEventListener("click", () => {
       activeGradeIndex = index;
       activeAssignment = null;
-      document.querySelector("#quiz-mode-tab").disabled = true;
+      document.querySelector("#solo-quiz-mode-tab").disabled = true;
       setMode("meanings");
       renderGrades();
       renderSurahs();
@@ -462,7 +462,7 @@ function renderSurahs() {
       activeAssignment = assignment;
       renderSurahs();
       if (activeMode === "quiz") {
-        document.querySelector("#quiz-mode-tab").disabled = getMeaningEntries(assignment).length === 0;
+        document.querySelector("#solo-quiz-mode-tab").disabled = getMeaningEntries(assignment).length === 0;
         startQuiz();
       } else {
         renderMeanings();
@@ -476,7 +476,7 @@ homeButton.addEventListener("click", () => {
   activeGradeIndex = null;
   activeAssignment = null;
   surahsSection.hidden = true;
-  document.querySelector("#quiz-mode-tab").disabled = true;
+  document.querySelector("#solo-quiz-mode-tab").disabled = true;
   setMode("meanings");
   renderGrades();
   lesson.replaceChildren();
@@ -491,7 +491,7 @@ function renderMeanings() {
 
   if (!reading) {
     lesson.append(createElement("p", "empty-meanings", "لا يتوفر نص هذا المقرر."));
-    document.querySelector("#quiz-mode-tab").disabled = entries.length === 0;
+    document.querySelector("#solo-quiz-mode-tab").disabled = entries.length === 0;
     return;
   }
 
@@ -696,7 +696,7 @@ function renderMeanings() {
     lesson.append(tafsirSection);
   }
 
-  document.querySelector("#quiz-mode-tab").disabled = entries.length === 0;
+  document.querySelector("#solo-quiz-mode-tab").disabled = entries.length === 0;
 }
 
 function toArabicNumber(number) {
@@ -803,12 +803,16 @@ function startQuiz() {
 }
 
 function setMode(mode) {
-  if (mode === "quiz" && !activeAssignment) return;
-  if (mode === "quiz" && getMeaningEntries(activeAssignment).length === 0) return;
+  if (mode === "quiz" && (!activeAssignment || getMeaningEntries(activeAssignment).length === 0)) return;
   activeMode = mode;
   modeTabs.forEach((tab) => {
     tab.setAttribute("aria-pressed", String(tab.dataset.mode === mode));
   });
+  if (mode === "classroom") {
+    lesson.replaceChildren();
+    window.classroomMode.render(lesson, quranLearningData.grades, getMeaningEntries);
+    return;
+  }
   if (!activeAssignment) {
     lesson.replaceChildren();
     return;
