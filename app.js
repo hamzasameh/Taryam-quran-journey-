@@ -342,52 +342,116 @@ function renderMeanings() {
   lesson.replaceChildren();
   const entries = getMeaningEntries(activeAssignment);
   const reading = quranTextData[quranTextKeys[activeAssignment]];
+  const textKey  = quranTextKeys[activeAssignment];
 
   if (reading) {
     const surahText = createElement("section", "surah-text");
     surahText.setAttribute("aria-label", `نص ${activeAssignment}`);
     surahText.append(createElement("h2", "", "نص السورة"));
-    const revelationLabel = getRevelationLabel(activeAssignment);
+
+    const revelationLabel     = getRevelationLabel(activeAssignment);
     const revelationSourceUrl = getRevelationSourceUrl(activeAssignment);
     if (revelationLabel && revelationSourceUrl) {
       const classification = createElement("a", "surah-revelation-source", revelationLabel);
-      classification.href = revelationSourceUrl;
+      classification.href   = revelationSourceUrl;
       classification.target = "_blank";
-      classification.rel = "noopener noreferrer";
+      classification.rel    = "noopener noreferrer";
       surahText.append(classification);
     }
-    const textKey = quranTextKeys[activeAssignment];
+
     if (reading.basmala) {
-      const basmala = createElement("div", "basmala");
-      const basmalaWords = createElement("span", "quran-verse-text");
-      const basmalaPanel = createElement("aside", "word-meaning-panel");
-      basmalaPanel.hidden = true;
-      basmalaPanel.setAttribute("aria-live", "polite");
-      basmalaPanel.id = `meaning-${textKey}-basmala`;
-      renderClickableWords(basmalaWords, reading.basmala, basmalaPanel, entries, null, surahText, textKey);
-      basmala.append(basmalaWords, basmalaPanel);
+      const basmala = createElement("div", "basmala", reading.basmala);
       surahText.append(basmala);
     }
+
     const verses = createElement("div", "verse-list");
+
     reading.verses.forEach((verse) => {
       const verseContainer = createElement("div", "verse-container");
+
+      // ── Ayah line: plain text + tappable ayah-number button ──
       const line = createElement("p", "quran-verse");
-      const wordList = createElement("span", "quran-verse-text");
-      const meaningPanel = createElement("aside", "word-meaning-panel");
-      meaningPanel.hidden = true;
-      meaningPanel.setAttribute("aria-live", "polite");
-      meaningPanel.id = `meaning-${textKey}-${verse.number}`;
-
-      renderClickableWords(wordList, verse.text, meaningPanel, entries, verse.number, surahText, textKey);
-
       line.append(
-        wordList,
-        document.createTextNode(" "),
-        createElement("span", "quran-verse-number", toArabicNumber(verse.number))
+        createElement("span", "quran-verse-text", verse.text),
+        document.createTextNode(" ")
       );
-      verseContainer.append(line, meaningPanel);
+
+      const numBtn = createElement("button", "quran-verse-number", toArabicNumber(verse.number));
+      numBtn.type = "button";
+      numBtn.setAttribute("aria-label", `تفسير الآية ${toArabicNumber(verse.number)}`);
+      numBtn.setAttribute("aria-expanded", "false");
+      line.append(numBtn);
+      verseContainer.append(line);
+
+      // ── Detail panel (hidden until tapped) ──
+      const panel = createElement("div", "ayah-detail-panel");
+      panel.hidden = true;
+
+      const tafsirEntry  = getTafsirForVerse(textKey, verse.number);
+      const ayahMeanings = entries.filter((e) => {
+        const n = Number(e.ayah.replace(/[٠-٩]/g,
+          (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d))));
+        return n === verse.number;
+      });
+
+      // Build bullet list
+      const list = createElement("ul", "ayah-points");
+
+      // Bullet 1 — tafsir
+      if (tafsirEntry) {
+        const li = createElement("li", "ayah-point ayah-point--tafsir");
+        const label = createElement("span", "point-label", "التفسير");
+
+        // Strip { } braces from tafsir text for clean display
+        const cleanText = tafsirEntry.text
+          .replace(/\{([^}]+)\}/g, "$1")
+          .replace(/\s+/g, " ")
+          .trim();
+        const body = createElement("span", "point-body", cleanText);
+
+        const src = createElement("a", "point-source", "تفسير السعدي · المصحف الإلكتروني");
+        src.href   = tafsirEntry.url;
+        src.target = "_blank";
+        src.rel    = "noopener noreferrer";
+
+        li.append(label, body, src);
+        list.append(li);
+      }
+
+      // Bullets 2+ — word meanings for this ayah
+      ayahMeanings.forEach((entry) => {
+        const li    = createElement("li", "ayah-point ayah-point--meaning");
+        const label = createElement("span", "point-label", entry.word);
+        const body  = createElement("span", "point-body", entry.meaning);
+        li.append(label, body);
+        list.append(li);
+      });
+
+      if (list.children.length === 0) {
+        const li = createElement("li", "ayah-point ayah-point--empty", "لا يوجد تفسير أو معنى محدد لهذه الآية في المصدر.");
+        list.append(li);
+      }
+
+      panel.append(list);
+      verseContainer.append(panel);
+
+      // Toggle on number button click
+      numBtn.addEventListener("click", () => {
+        const isOpen = numBtn.getAttribute("aria-expanded") === "true";
+        // Close all other open panels
+        verses.querySelectorAll(".quran-verse-number[aria-expanded='true']").forEach((btn) => {
+          if (btn !== numBtn) {
+            btn.setAttribute("aria-expanded", "false");
+            btn.closest(".verse-container").querySelector(".ayah-detail-panel").hidden = true;
+          }
+        });
+        numBtn.setAttribute("aria-expanded", String(!isOpen));
+        panel.hidden = isOpen;
+      });
+
       verses.append(verseContainer);
     });
+
     surahText.append(verses);
     lesson.append(surahText);
   } else {
