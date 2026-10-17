@@ -1,6 +1,7 @@
 const quranLearningData = {
   school: "مدرسة تريام الأمريكية الخاصة",
   indexSource: "https://e-quran.com/indx-word.html",
+  teacherNotes: {},
   grades: [
     { name: "الصف الأول", assignments: ["الفاتحة", "الإخلاص", "الفلق", "الناس", "قريش"] },
     { name: "الصف الثاني", assignments: ["العصر", "الشرح", "الشمس", "آية الكرسي (البقرة: ٢٥٥)"] },

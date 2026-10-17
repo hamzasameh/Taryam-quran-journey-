@@ -3,6 +3,13 @@ const surahNavigation = document.querySelector("#surah-navigation");
 const surahsSection = document.querySelector("#surahs-section");
 const lesson = document.querySelector("#lesson");
 const modeTabs = Array.from(document.querySelectorAll(".mode-tab"));
+const searchInput = document.querySelector("#site-search");
+const searchResults = document.querySelector("#search-results");
+const gradeHint = document.querySelector("#grade-hint");
+const surahHint = document.querySelector("#surah-hint");
+const homeButton = document.querySelector("#home-button");
+const progressStorageKey = "taryam-quran-progress-v1";
+const reflectionsStorageKey = "taryam-quran-reflections-v1";
 const quranTextKeys = {
   الفاتحة: "fatiha",
   الإخلاص: "ikhlas",
@@ -38,6 +45,33 @@ let quizQuestions = [];
 let questionIndex = 0;
 let score = 0;
 let answered = false;
+let reviewProgress = loadLocalData(progressStorageKey);
+let studentReflections = loadLocalData(reflectionsStorageKey);
+
+function loadLocalData(key) {
+  try {
+    return JSON.parse(localStorage.getItem(key) || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function saveLocalData(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function getReviewedCount(assignment) {
+  return Object.values(reviewProgress[assignment] || {}).filter(Boolean).length;
+}
+
+function isAyahReviewed(assignment, ayahNumber) {
+  return Boolean(reviewProgress[assignment]?.[ayahNumber]);
+}
 
 function createElement(tag, className, text) {
   const element = document.createElement(tag);
@@ -82,6 +116,29 @@ function getAllMeaningEntries() {
   ];
 }
 
+function renderMeaningList(panel, entries, assignment) {
+  panel.replaceChildren();
+  if (entries.length === 0) {
+    panel.append(createElement("p", "meanings-empty", "لا توجد معانٍ محددة لهذه الآية في المصدر."));
+    return;
+  }
+  const list = createElement("ul", "meanings-list");
+  entries.forEach((entry) => {
+    const item = createElement("li", "meanings-item");
+    item.append(
+      createElement("span", "meanings-item__word", entry.word),
+      createElement("span", "meanings-item__sep", " : "),
+      createElement("span", "meanings-item__meaning", entry.meaning)
+    );
+    list.append(item);
+  });
+  const source = createElement("a", "meaning-source-tag", "المصدر: المصحف الإلكتروني");
+  source.href = getRevelationSourceUrl(assignment) || quranLearningData.indexSource;
+  source.target = "_blank";
+  source.rel = "noopener noreferrer";
+  panel.append(list, source);
+}
+
 function shuffle(items) {
   const shuffled = [...items];
   for (let index = shuffled.length - 1; index > 0; index -= 1) {
@@ -97,6 +154,7 @@ function normalizeArabicText(value) {
     .replace(/[ـٱأإآ]/g, "ا")
     .replace(/ى/g, "ي")
     .replace(/[٠-٩]/g, (digit) => String("٠١٢٣٤٥٦٧٨٩".indexOf(digit)))
+    .replace(/[.,،:؛!؟()\[\]{}«»“”\"'ـ۞۝]/g, " ")
     .replace(/\s+/g, " ")
     .trim()
     .toLowerCase();
@@ -282,20 +340,88 @@ function renderClickableWords(target, text, panel, entries, verseNumber, root, t
   });
 }
 
+function renderSearchResults() {
+  const query = normalizeArabicText(searchInput.value);
+  searchResults.replaceChildren();
+  if (!query) {
+    searchResults.hidden = true;
+    return;
+  }
+
+  const matches = [];
+  quranLearningData.grades.forEach((grade, gradeIndex) => {
+    grade.assignments.forEach((assignment) => {
+      const entries = getMeaningEntries(assignment);
+      const matchingEntry = entries.find((entry) =>
+        normalizeArabicText(`${entry.word} ${entry.meaning}`).includes(query)
+      );
+      if (normalizeArabicText(`${assignment} ${grade.name}`).includes(query) || matchingEntry) {
+        matches.push({ gradeIndex, grade, assignment, matchingEntry });
+      }
+    });
+  });
+
+  if (matches.length === 0) {
+    searchResults.append(createElement("p", "search-empty", "لم نعثر على سورة أو كلمة مطابقة في المقررات."));
+    searchResults.hidden = false;
+    return;
+  }
+
+  matches.slice(0, 12).forEach(({ gradeIndex, grade, assignment, matchingEntry }) => {
+    const button = createElement("button", "search-result");
+    button.type = "button";
+    button.append(
+      createElement("strong", "search-result__title", assignment),
+      createElement("span", "search-result__grade", grade.name)
+    );
+    if (matchingEntry) {
+      button.append(createElement("span", "search-result__meaning", `${matchingEntry.word}: ${matchingEntry.meaning}`));
+    }
+    button.addEventListener("click", () => {
+      activeGradeIndex = gradeIndex;
+      activeAssignment = assignment;
+      surahsSection.hidden = false;
+      document.querySelector("#quiz-mode-tab").disabled = getMeaningEntries(assignment).length === 0;
+      setMode("meanings");
+      renderGrades();
+      renderSurahs();
+      renderMeanings();
+      searchResults.hidden = true;
+      lesson.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+    searchResults.append(button);
+  });
+
+  if (matches.length > 12) {
+    searchResults.append(createElement("p", "search-more", `تظهر أول ١٢ نتيجة من ${toArabicNumber(matches.length)}.`));
+  }
+  searchResults.hidden = false;
+}
+
+searchInput.addEventListener("input", renderSearchResults);
+searchInput.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    searchInput.value = "";
+    renderSearchResults();
+  }
+});
+
 function renderGrades() {
   gradeNavigation.replaceChildren();
-  // Arabic ordinal numbers for grade badges
-  const ordinals = ["١","٢","٣","٤","٥","٦","٧","٨","٩","١٠","١١","١٢"];
+  gradeHint.textContent = activeGradeIndex === null
+    ? "اختر صفّك لعرض السور المقررة لك."
+    : `تم اختيار ${quranLearningData.grades[activeGradeIndex].name}. اختر إحدى السور للبدء.`;
   quranLearningData.grades.forEach((grade, index) => {
     const button = createElement("button", "grade-button");
     button.type = "button";
     button.setAttribute("aria-pressed", String(index === activeGradeIndex));
-    button.setAttribute("aria-label", grade.name);
+    button.setAttribute("aria-label", `${grade.name}، ${grade.assignments.length} مقررات`);
 
-    const badge = createElement("span", "grade-badge", ordinals[index] || String(index + 1));
-    const label = createElement("span", "grade-label", "الصف");
+    const badge = createElement("span", "grade-badge", toArabicNumber(index + 1));
+    const label = createElement("span", "grade-label", grade.name);
+    const count = createElement("span", "grade-count", `${toArabicNumber(grade.assignments.length)} مقررات`);
 
-    button.append(badge, label);
+    button.append(badge, label, count);
     button.addEventListener("click", () => {
       activeGradeIndex = index;
       activeAssignment = null;
@@ -314,6 +440,8 @@ function renderSurahs() {
   surahNavigation.replaceChildren();
   const grade = quranLearningData.grades[activeGradeIndex];
   if (!grade) return;
+  const reviewed = grade.assignments.reduce((total, assignment) => total + getReviewedCount(assignment), 0);
+  surahHint.textContent = `${grade.name} · ${grade.assignments.length} مقررات · ${toArabicNumber(reviewed)} آيات تمت مراجعتها`;
 
   grade.assignments.forEach((assignment) => {
     const button = createElement("button", "surah-button");
@@ -323,6 +451,10 @@ function renderSurahs() {
     const revelationLabel = getRevelationLabel(assignment);
     if (revelationLabel) {
       button.append(createElement("span", "surah-classification", revelationLabel));
+    }
+    const reviewedCount = getReviewedCount(assignment);
+    if (reviewedCount > 0) {
+      button.append(createElement("span", "surah-progress", `${toArabicNumber(reviewedCount)} تمت مراجعتها`));
     }
     button.addEventListener("click", () => {
       activeAssignment = assignment;
@@ -337,6 +469,59 @@ function renderSurahs() {
     surahNavigation.append(button);
   });
 }
+
+function renderStudySupport(assignment) {
+  const support = createElement("section", "study-support");
+  const notesSection = createElement("div", "teacher-notes");
+  notesSection.append(createElement("h2", "support-heading", "ملاحظات المعلمة"));
+  const approvedNotes = quranLearningData.teacherNotes?.[assignment] || [];
+  if (approvedNotes.length > 0) {
+    const list = createElement("ul", "teacher-notes-list");
+    approvedNotes.forEach((note) => list.append(createElement("li", "", note)));
+    notesSection.append(list);
+  } else {
+    notesSection.append(createElement("p", "teacher-notes-empty", "ستظهر هنا ملاحظات المعلمة بعد إضافتها ومراجعتها."));
+  }
+
+  const reflectionSection = createElement("div", "reflection-card");
+  reflectionSection.append(
+    createElement("h2", "support-heading", "تأمّل وتذكّر"),
+    createElement("p", "reflection-prompt", "ما الكلمة الجديدة التي تعلمتها اليوم؟ وما السؤال الذي تريد أن تسأله للمعلمة؟")
+  );
+  const reflection = document.createElement("textarea");
+  reflection.className = "reflection-input";
+  reflection.rows = 3;
+  reflection.maxLength = 500;
+  reflection.placeholder = "اكتب ملاحظتك هنا؛ ستُحفظ على هذا الجهاز فقط.";
+  reflection.setAttribute("aria-label", `ملاحظتك عن ${assignment}`);
+  reflection.value = studentReflections[assignment] || "";
+  const saveButton = createElement("button", "mode-button reflection-save", "حفظ ملاحظتي");
+  saveButton.type = "button";
+  const status = createElement("span", "reflection-status");
+  status.setAttribute("role", "status");
+  saveButton.addEventListener("click", () => {
+    const text = reflection.value.trim();
+    if (text) studentReflections[assignment] = text;
+    else delete studentReflections[assignment];
+    status.textContent = saveLocalData(reflectionsStorageKey, studentReflections)
+      ? "حُفظت على هذا الجهاز."
+      : "تعذّر الحفظ في هذا المتصفح.";
+  });
+  reflectionSection.append(reflection, saveButton, status);
+  support.append(notesSection, reflectionSection);
+  lesson.append(support);
+}
+
+homeButton.addEventListener("click", () => {
+  activeGradeIndex = null;
+  activeAssignment = null;
+  surahsSection.hidden = true;
+  document.querySelector("#quiz-mode-tab").disabled = true;
+  setMode("meanings");
+  renderGrades();
+  lesson.replaceChildren();
+  document.querySelector("#grades-title").scrollIntoView({ behavior: "smooth", block: "start" });
+});
 
 function renderMeanings() {
   lesson.replaceChildren();
@@ -367,6 +552,20 @@ function renderMeanings() {
     surahText.append(classification);
   }
 
+  const lessonToolbar = createElement("div", "lesson-toolbar");
+  const audioLink = createElement("a", "audio-source-button", "♪ الاستماع والتلاوة من المصحف الإلكتروني");
+  audioLink.href = revelationSourceUrl || quranLearningData.indexSource;
+  audioLink.target = "_blank";
+  audioLink.rel = "noopener noreferrer";
+  audioLink.setAttribute("aria-label", `افتح صفحة ${activeAssignment} في المصحف الإلكتروني للاستماع`);
+  lessonToolbar.append(audioLink);
+  const reviewedCount = getReviewedCount(activeAssignment);
+  const progressLabel = createElement("span", "lesson-progress", `مراجعة الآيات على هذا الجهاز: ${toArabicNumber(reviewedCount)} / ${toArabicNumber(reading.verses.length)}`);
+  progressLabel.setAttribute("role", "status");
+  lessonToolbar.append(progressLabel);
+  surahText.append(lessonToolbar);
+  surahText.append(createElement("p", "interaction-hint", "اضغط على الكلمات المظللة لعرض معناها، أو على رقم الآية لعرض جميع معانيها."));
+
   if (reading.basmala) {
     surahText.append(createElement("div", "basmala", reading.basmala));
   }
@@ -375,13 +574,48 @@ function renderMeanings() {
 
   reading.verses.forEach((verse) => {
     const verseContainer = createElement("div", "verse-container");
+    const ayahMeanings = entries.filter((entry) => {
+      const n = Number(entry.ayah.replace(/[٠-٩]/g, (digit) => String("٠١٢٣٤٥٦٧٨٩".indexOf(digit))));
+      return n === verse.number;
+    });
 
-    // Ayah text (plain) + tappable number circle
+    // The verse remains verbatim; only words with a source-backed meaning become buttons.
     const line = createElement("p", "quran-verse");
-    line.append(
-      createElement("span", "quran-verse-text", verse.text),
-      document.createTextNode(" ")
-    );
+    const verseText = createElement("span", "quran-verse-text");
+    verse.text.split(/(\s+)/).forEach((part) => {
+      if (/^\s+$/.test(part)) {
+        verseText.append(document.createTextNode(part));
+        return;
+      }
+      const cleanWord = part.replace(/^[۞۝﴿﴾]+|[۞۝﴿﴾،؛,.!?؟:]+$/g, "");
+      const matches = getEntriesForWord(entries, verse.number, cleanWord);
+      if (matches.length === 0) {
+        verseText.append(document.createTextNode(part));
+        return;
+      }
+      const wordButton = createElement("button", "quran-word quran-word--has-meaning", part);
+      wordButton.type = "button";
+      wordButton.setAttribute("aria-expanded", "false");
+      wordButton.setAttribute("aria-label", `معنى ${cleanWord}`);
+      wordButton.setAttribute("aria-controls", `ayah-meanings-${textKey}-${verse.number}`);
+      wordButton.addEventListener("click", () => {
+        const wasOpen = wordButton.getAttribute("aria-expanded") === "true";
+        line.querySelectorAll(".quran-word").forEach((button) => button.setAttribute("aria-expanded", "false"));
+        numBtn.setAttribute("aria-expanded", "false");
+        if (wasOpen) {
+          panel.hidden = true;
+          panel.replaceChildren();
+          verseContainer.classList.remove("verse-container--meaning-open");
+          return;
+        }
+        wordButton.setAttribute("aria-expanded", "true");
+        renderMeaningList(panel, matches.map(({ entry }) => entry), activeAssignment);
+        panel.hidden = false;
+        verseContainer.classList.add("verse-container--meaning-open");
+      });
+      verseText.append(wordButton);
+    });
+    line.append(verseText, document.createTextNode(" "));
 
     const numBtn = createElement("button", "quran-verse-number", toArabicNumber(verse.number));
     numBtn.type = "button";
@@ -392,27 +626,32 @@ function renderMeanings() {
 
     // Meanings panel — shown on tap, word meanings ONLY
     const panel = createElement("div", "ayah-meanings-panel");
+    panel.id = `ayah-meanings-${textKey}-${verse.number}`;
     panel.hidden = true;
     panel.setAttribute("aria-live", "polite");
+    numBtn.setAttribute("aria-controls", panel.id);
 
-    const ayahMeanings = entries.filter((e) => {
-      const n = Number(e.ayah.replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d))));
-      return n === verse.number;
+    const reviewLabel = createElement("label", "review-toggle");
+    const reviewCheckbox = document.createElement("input");
+    reviewCheckbox.type = "checkbox";
+    reviewCheckbox.checked = isAyahReviewed(activeAssignment, verse.number);
+    reviewCheckbox.setAttribute("aria-label", `تحديد الآية ${toArabicNumber(verse.number)} تمت مراجعتها`);
+    const reviewText = createElement("span", "", "تمت المراجعة");
+    reviewLabel.append(reviewCheckbox, reviewText);
+    reviewCheckbox.addEventListener("change", () => {
+      reviewProgress[activeAssignment] ||= {};
+      reviewProgress[activeAssignment][verse.number] = reviewCheckbox.checked;
+      if (!reviewCheckbox.checked) delete reviewProgress[activeAssignment][verse.number];
+      saveLocalData(progressStorageKey, reviewProgress);
+      progressLabel.textContent = `مراجعة الآيات على هذا الجهاز: ${toArabicNumber(getReviewedCount(activeAssignment))} / ${toArabicNumber(reading.verses.length)}`;
+      renderSurahs();
     });
+    line.append(reviewLabel);
 
     if (ayahMeanings.length > 0) {
-      const list = createElement("ul", "meanings-list");
-      ayahMeanings.forEach((entry) => {
-        const li    = createElement("li", "meanings-item");
-        const word  = createElement("span", "meanings-item__word",    entry.word);
-        const sep   = createElement("span", "meanings-item__sep",     " : ");
-        const body  = createElement("span", "meanings-item__meaning", entry.meaning);
-        li.append(word, sep, body);
-        list.append(li);
-      });
-      panel.append(list);
+      renderMeaningList(panel, ayahMeanings, activeAssignment);
     } else {
-      panel.append(createElement("p", "meanings-empty", "لا توجد معاني محددة لهذه الآية في المصدر."));
+      panel.append(createElement("p", "meanings-empty", "لا توجد معانٍ محددة لهذه الآية في المصدر."));
     }
 
     verseContainer.append(panel);
@@ -431,6 +670,8 @@ function renderMeanings() {
       numBtn.setAttribute("aria-expanded", String(!isOpen));
       panel.hidden = isOpen;
       verseContainer.classList.toggle("verse-container--meaning-open", !isOpen);
+      if (!isOpen) renderMeaningList(panel, ayahMeanings, activeAssignment);
+      line.querySelectorAll(".quran-word").forEach((button) => button.setAttribute("aria-expanded", "false"));
     });
 
     verses.append(verseContainer);
@@ -489,6 +730,8 @@ function renderMeanings() {
     tafsirSection.append(ol);
     lesson.append(tafsirSection);
   }
+
+  renderStudySupport(activeAssignment);
 
   document.querySelector("#quiz-mode-tab").disabled = entries.length === 0;
 }

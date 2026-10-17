@@ -97,13 +97,24 @@
       <button id="quiz-mode-tab" class="mode-tab" type="button" data-mode="quiz" aria-pressed="false" disabled>وضع الاختبار</button>
     </nav>
 
+    <section class="search-section" aria-label="البحث في المقررات">
+      <label for="site-search">ابحث عن سورة أو كلمة</label>
+      <input id="site-search" type="search" placeholder="مثال: الإخلاص، الصمد، الصبر" autocomplete="off">
+      <div id="search-results" class="search-results" aria-live="polite" hidden></div>
+    </section>
+
     <section class="selection-section" aria-labelledby="grades-title">
       <h2 id="grades-title">اختر صفّك</h2>
+      <p id="grade-hint" class="section-hint">اختر صفّك لعرض السور المقررة لك.</p>
       <nav id="grade-navigation" class="grade-navigation" aria-label="الصفوف الدراسية"></nav>
     </section>
 
     <section id="surahs-section" class="selection-section" aria-labelledby="surahs-title" hidden>
       <h2 id="surahs-title">اختر السورة أو الآية</h2>
+      <div class="surah-section-tools">
+        <p id="surah-hint" class="section-hint"></p>
+        <button id="home-button" class="text-button" type="button">العودة لاختيار الصف</button>
+      </div>
       <nav id="surah-navigation" class="surah-navigation" aria-label="السور والآيات المقررة"></nav>
     </section>
 
