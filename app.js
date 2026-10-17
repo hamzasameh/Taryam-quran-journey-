@@ -168,13 +168,16 @@ function renderClickableWords(target, text, panel, entries, verseNumber, root, t
     const hasMeaning = matches.length > 0;
     const hasTafsir  = tafsirEntry !== null;
 
-    // Nothing to show — plain text
+    // If no tafsir AND no meaning — plain text
     if (!hasMeaning && !hasTafsir) {
       target.append(document.createTextNode(part));
       return;
     }
 
-    const wordClass = hasMeaning ? "quran-word quran-word--has-meaning" : "quran-word quran-word--tafsir-only";
+    // All words with tafsir are tappable; gold highlight if also has meaning
+    const wordClass = hasMeaning
+      ? "quran-word quran-word--has-meaning"
+      : "quran-word quran-word--tafsir-only";
     const word = createElement("button", wordClass, part);
     word.type = "button";
     word.setAttribute("aria-expanded", "false");
@@ -193,28 +196,26 @@ function renderClickableWords(target, text, panel, entries, verseNumber, root, t
       panel.hidden = wasExpanded;
       if (wasExpanded) return;
 
-      // ① Word/phrase meaning from e-Quran word-meanings source
+      // ① Word/phrase meaning from e-Quran word-meanings source — show meaning only, no word label
       if (hasMeaning) {
         matches.forEach(({ entry }) => {
           const block = createElement("div", "word-meaning-entry");
-          const label = createElement("strong", "meaning-word-label", entry.word);
-          const text  = createElement("p",      "meaning-word-text",  entry.meaning);
+          const text  = createElement("p", "meaning-word-text", entry.meaning);
           const src   = createElement("a", "meaning-source-tag", "معنى الكلمة · المصحف الإلكتروني");
           src.href   = quranLearningData.surahs[activeAssignment]?.meaningsSource
                        || quranLearningData.meaningPages[activeAssignment]
                        || quranLearningData.indexSource;
           src.target = "_blank";
           src.rel    = "noopener noreferrer";
-          block.append(label, text, src);
+          block.append(text, src);
           panel.append(block);
         });
       }
 
       // ② Tafsir (per-ayah) from e-Quran tafseer/saadi
       if (hasTafsir) {
-        const block   = createElement("div", "word-tafsir-entry");
-        const heading = createElement("p", "tafsir-label", `تفسير الآية ${toArabicNumber(verseNumber)}`);
-        const body    = createElement("p", "tafsir-body");
+        const block = createElement("div", "word-tafsir-entry");
+        const body  = createElement("p", "tafsir-body");
 
         const tafsirText = tafsirEntry.text;
         const hasBraces  = tafsirText.includes("{");
@@ -272,7 +273,7 @@ function renderClickableWords(target, text, panel, entries, verseNumber, root, t
         src.href   = tafsirEntry.url;
         src.target = "_blank";
         src.rel    = "noopener noreferrer";
-        block.append(heading, body, src);
+        block.append(body, src);
         panel.append(block);
       }
     });
