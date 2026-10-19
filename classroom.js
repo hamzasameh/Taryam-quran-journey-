@@ -82,7 +82,7 @@
 
   function renderTeacherForm() {
     const card = panel("إنشاء غرفة للصف", "اختر الصف والسورة، ثم شارك رمز الغرفة مع الطلاب.");
-    const host = inputField("اسم المعلّم / المعلّمة", "مثال: الأستاذة مريم");
+    const host = inputField("اسم المعلّم / المعلّمة", "مثال: الأستاذة سالي");
     const gradeLabel = el("label", "classroom-field");
     gradeLabel.append(el("span", "", "الصف"));
     const gradeSelect = el("select");
