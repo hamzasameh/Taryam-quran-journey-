@@ -19,6 +19,18 @@
     if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type, ...data }));
   }
 
+  function closeConnection() {
+    const connection = socket;
+    socket = null;
+    connection?.close();
+  }
+
+  function returnToRoles() {
+    closeConnection();
+    session = null;
+    render();
+  }
+
   function panel(title, description) {
     const card = el("section", "classroom-card");
     card.append(el("h2", "", title));
@@ -77,7 +89,7 @@
     card.append(roles);
     if (error) card.append(statusLine(error, "classroom-status--error"));
     card.append(actionButton("تدرّب وحدك", () => document.querySelector("#solo-quiz-mode-tab").click(), true));
-    root.append(card);
+    root.replaceChildren(card);
   }
 
   function renderTeacherForm() {
@@ -112,7 +124,7 @@
         status.className = "classroom-status classroom-status--error";
         return;
       }
-      connect(status, { type: "create", hostName, gradeName: grade.name, surah,
+      connect(status, create, { type: "create", hostName, gradeName: grade.name, surah,
         allowedSurahs: grade.assignments || [surah], questions: entries, tafsirQuestions });
     });
     gradeSelect.addEventListener("change", () => {
@@ -122,7 +134,7 @@
       (grade?.assignments || []).forEach((surah) => surahSelect.append(new Option(surah, surah)));
     });
     card.append(host.wrap, gradeLabel, surahLabel, create, status,
-      actionButton("رجوع", () => renderRoles(), true));
+      actionButton("رجوع", returnToRoles, true));
     root.replaceChildren(card);
   }
 
@@ -141,15 +153,16 @@
         status.className = "classroom-status classroom-status--error";
         return;
       }
-      connect(status, { type: "join", roomCode, playerName });
+      connect(status, join, { type: "join", roomCode, playerName });
     });
     code.input.addEventListener("input", () => { code.input.value = code.input.value.toUpperCase(); });
     card.append(name.wrap, code.wrap, join, status,
-      actionButton("رجوع", () => renderRoles(), true));
+      actionButton("رجوع", returnToRoles, true));
     root.replaceChildren(card);
   }
 
-  function connect(status, message) {
+  function connect(status, submit, message) {
+    if (socket) return;
     if (SOCKET_URL.includes("REPLACE_WITH")) {
       status.textContent = "خدمة الغرف المباشرة لم تُنشر بعد.";
       status.className = "classroom-status classroom-status--error";
@@ -164,24 +177,32 @@
       status.className = "classroom-status classroom-status--error";
       return;
     }
-    socket.addEventListener("open", () => send(message.type, message), { once: true });
-    socket.addEventListener("message", (event) => {
+    session = null;
+    submit.disabled = true;
+    const connection = socket;
+    connection.addEventListener("open", () => {
+      if (socket === connection) connection.send(JSON.stringify(message));
+    }, { once: true });
+    connection.addEventListener("message", (event) => {
+      if (socket !== connection) return;
       let data;
       try { data = JSON.parse(event.data); } catch { return; }
-      if (data.type === "kicked") {
-        socket.close();
-        session = { phase: "error", error: data.message || "أخرجك المعلّم من الغرفة قبل بدء اللعبة." };
+      if (data.type === "kicked" || data.type === "roomClosed") {
+        closeConnection();
+        session = { phase: "error", error: data.message };
         render();
         return;
       }
       if (data.type === "error") {
-        if (session && ["lobby", "playing"].includes(session.phase)) {
+        if (session) {
           session.messageError = data.message;
+          render();
         } else {
-          socket.close();
-          session = { phase: "error", error: data.message };
+          closeConnection();
+          submit.disabled = false;
+          status.textContent = data.message;
+          status.className = "classroom-status classroom-status--error";
         }
-        render();
         return;
       }
       if (data.type === "created" || data.type === "joined" || data.type === "room") {
@@ -205,15 +226,17 @@
         render();
       }
     });
-    socket.addEventListener("close", () => {
-      if (session && ["lobby", "playing"].includes(session.phase)) {
-        session = { phase: "error", error: "انقطع الاتصال بالغرفة. ارجع وحاول الانضمام من جديد." };
+    connection.addEventListener("close", () => {
+      if (socket !== connection) return;
+      socket = null;
+      if (session) {
+        session = { phase: "error", error: session.messageError || "انقطع الاتصال بالغرفة. ارجع وحاول الانضمام من جديد." };
         render();
+      } else {
+        submit.disabled = false;
+        status.textContent = "لم نتمكن من الوصول إلى خدمة الغرف. حاول مرة أخرى.";
+        status.className = "classroom-status classroom-status--error";
       }
-    });
-    socket.addEventListener("error", () => {
-      status.textContent = "لم نتمكن من الوصول إلى خدمة الغرف. حاول مرة أخرى.";
-      status.className = "classroom-status classroom-status--error";
     });
   }
 
@@ -255,12 +278,14 @@
     }
     card.append(statusLine(session.isHost && !session.players?.length
       ? "بانتظار انضمام طالب واحد على الأقل…" : "تم تحديث قائمة المشاركين تلقائيًا."));
+    if (session.messageError) card.append(statusLine(session.messageError, "classroom-status--error"));
     root.replaceChildren(card);
   }
 
   function renderTurn() {
     const player = currentPlayer();
     if (!player) return renderResults();
+    const turn = { roundNumber: session.roundNumber, turnIndex: session.turnIndex };
     const card = panel(`دور ${player.name}!`, `الجولة ${toArabic(session.roundNumber || 1)} · السؤال ${toArabic(session.turnIndex + 1)} من ${toArabic(session.turnOrder?.length || 0)}`);
     const order = el("div", "classroom-turn-order");
     order.append(el("span", "classroom-turn-order__label", "ترتيب اللعب"));
@@ -290,15 +315,15 @@
         }
         prompt.append(answerReference);
         if (!session.answered) {
-          prompt.append(actionButton("إجابة صحيحة", () => send("gradeOral", { correct: true })),
-            actionButton("إجابة غير صحيحة", () => send("gradeOral", { correct: false }), true));
+          prompt.append(actionButton("إجابة صحيحة", () => send("gradeOral", { ...turn, correct: true })),
+            actionButton("إجابة غير صحيحة", () => send("gradeOral", { ...turn, correct: false }), true));
         }
       }
     } else {
       prompt.append(el("h3", "", `ما معنى «${question.word}»؟`));
       const answers = el("div", "classroom-answer-list");
       (question.choices || []).forEach((choice) => {
-        const button = actionButton(choice, () => send("answer", { choice }));
+        const button = actionButton(choice, () => send("answer", { ...turn, choice }));
         button.classList.add("classroom-answer");
         button.disabled = !canAnswer;
         answers.append(button);
@@ -327,9 +352,9 @@
     if (session.messageError) card.append(statusLine(session.messageError, "classroom-status--error"));
     if (session.isHost && (session.lastAnswer || session.turnIndex >= (session.turnOrder || []).length - 1)) {
       card.append(actionButton(session.turnIndex >= (session.turnOrder || []).length - 1 ? "عرض النتائج" : "اللاعب التالي",
-        () => send("next")));
+        () => send("next", turn)));
     } else if (session.isHost) {
-      card.append(actionButton("تجاوز هذا الدور", () => send("next"), true));
+      card.append(actionButton("تجاوز هذا الدور", () => send("next", turn), true));
     }
     card.append(el("h3", "classroom-subheading", "النقاط"), playerList());
     root.replaceChildren(card);
@@ -349,12 +374,17 @@
       list.append(row);
     });
     card.append(list);
+    if (session.messageError) card.append(statusLine(session.messageError, "classroom-status--error"));
     if (session.isHost) {
-      card.append(actionButton("جولة أخرى مع الطلاب أنفسهم", renderNewRoundForm));
+      if (players.some((player) => player.connected !== false)) {
+        card.append(actionButton("جولة أخرى مع الطلاب أنفسهم", renderNewRoundForm));
+      } else if (!session.messageError) {
+        card.append(statusLine("لا يوجد طلاب متصلون لبدء جولة جديدة."));
+      }
     } else {
       card.append(statusLine("انتظر المعلّم إذا أراد بدء جولة أخرى."));
     }
-    card.append(actionButton("العودة إلى لعبة الصف", () => { session = null; socket?.close(); render(); }, true));
+    card.append(actionButton("العودة إلى لعبة الصف", returnToRoles, true));
     root.replaceChildren(card);
   }
 
@@ -394,6 +424,10 @@
       getEntries = entriesFor;
       getTafsirQuestions = tafsirQuestionsFor || (() => []);
       render();
+    },
+    hide() {
+      root = null;
+      if (!session) closeConnection();
     }
   };
 })();

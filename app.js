@@ -479,7 +479,9 @@ function renderSurahs() {
     button.addEventListener("click", () => {
       activeAssignment = assignment;
       renderSurahs();
-      if (activeMode === "quiz") {
+      if (activeMode === "classroom") {
+        setMode("meanings");
+      } else if (activeMode === "quiz") {
         document.querySelector("#solo-quiz-mode-tab").disabled = getMeaningEntries(assignment).length === 0;
         startQuiz();
       } else {
@@ -831,6 +833,7 @@ function setMode(mode) {
     window.classroomMode.render(lesson, quranLearningData.grades, getMeaningEntries, getTafsirQuestions);
     return;
   }
+  window.classroomMode.hide();
   if (!activeAssignment) {
     lesson.replaceChildren();
     return;

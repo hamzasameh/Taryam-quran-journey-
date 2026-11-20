@@ -44,7 +44,7 @@ function publicRoom(room) {
     surah: room.surah,
     roundNumber: room.roundNumber,
     phase: room.phase,
-    players: room.players.map(({ id, name, points }) => ({ id, name, points })),
+    players: room.players.map(({ id, name, points, connected }) => ({ id, name, points, connected })),
     turnOrder: room.turnOrder,
     turnIndex: room.turnIndex,
     currentQuestion: room.currentQuestion,
@@ -57,6 +57,16 @@ function sendRoom(room, type = "room") {
   for (const [peer, state] of peers) {
     if (state.roomCode === room.code) {
       send(peer, roomMessage(room, state, type));
+    }
+  }
+}
+
+function closeRoom(room, message) {
+  rooms.delete(room.code);
+  for (const [peer, state] of peers) {
+    if (state.roomCode === room.code) {
+      send(peer, { type: "roomClosed", message });
+      peer.close();
     }
   }
 }
@@ -168,15 +178,18 @@ function startGame(peer, state) {
   if (!room || state.role !== "host") return error(peer, "المعلّم فقط يستطيع بدء اللعبة.");
   if (room.phase !== "lobby") return error(peer, "بدأت هذه اللعبة بالفعل.");
   if (room.players.length < 1) return error(peer, "انتظر انضمام طالب واحد على الأقل.");
+  room.roundQuestions = shuffle(room.questionBank);
   room.turnOrder = makeTurnOrder(room);
   room.phase = "playing";
   room.turnIndex = 0;
+  room.meaningQuestionIndex = 0;
+  room.tafsirQuestionIndex = 0;
   beginTurn(room);
   sendRoom(room, "started");
 }
 
 function makeTurnOrder(room) {
-  const order = shuffle(room.players.map((player) => player.id));
+  const order = shuffle(room.players.filter((player) => player.connected).map((player) => player.id));
   if (order.length === 1 && room.questionBank.length && room.tafsirBank.length) order.push(order[0]);
   return order;
 }
@@ -192,12 +205,12 @@ function beginTurn(room) {
   const useTafsir = room.tafsirBank.length > 0 && (room.questionBank.length === 0
     || (room.turnOrder.length === 1 ? room.roundNumber % 2 === 0 : room.turnIndex % 2 === 1));
   if (useTafsir) {
-    const entry = room.tafsirBank[Math.floor(room.turnIndex / 2) % room.tafsirBank.length];
+    const entry = room.tafsirBank[room.tafsirQuestionIndex++ % room.tafsirBank.length];
     room.currentQuestion = { type: "tafsir", ayah: entry.ayah, verse: entry.verse, prompt: entry.prompt };
     room.currentAnswer = entry.answer;
     room.currentSourceUrl = entry.sourceUrl;
   } else {
-    const entry = shuffle(room.questionBank)[room.turnIndex % room.questionBank.length];
+    const entry = room.roundQuestions[room.meaningQuestionIndex++ % room.roundQuestions.length];
     const distractors = shuffle([...new Set(room.questionBank.map((item) => item.meaning))]
       .filter((meaning) => meaning !== entry.meaning)).slice(0, 3);
     room.currentQuestion = {
@@ -273,7 +286,15 @@ function nextTurn(peer, state) {
   const room = rooms.get(state.roomCode);
   if (!room || state.role !== "host") return error(peer, "المعلّم فقط يستطيع الانتقال للسؤال التالي.");
   if (room.phase !== "playing") return error(peer, "لا توجد لعبة نشطة.");
-  room.turnIndex += 1;
+  advanceTurn(room);
+}
+
+function advanceTurn(room) {
+  do {
+    room.turnIndex += 1;
+  } while (room.turnIndex < room.turnOrder.length && !room.players.some(
+    (player) => player.id === room.turnOrder[room.turnIndex] && player.connected
+  ));
   if (room.turnIndex >= room.turnOrder.length) {
     room.phase = "finished";
     room.currentQuestion = null;
@@ -297,13 +318,20 @@ function newRound(peer, state, data) {
   const tafsirQuestions = sanitizeTafsirQuestions(data.tafsirQuestions);
   if (questions.length < 1 && tafsirQuestions.length < 1) return error(peer, "لا تتوفر أسئلة لهذه السورة.");
 
+  if (!room.players.some((player) => player.connected)) {
+    return error(peer, "لا يوجد طلاب متصلون لبدء جولة جديدة.");
+  }
+
   room.surah = surah;
   room.questionBank = questions;
   room.tafsirBank = tafsirQuestions;
   room.roundNumber += 1;
   room.players.forEach((player) => { player.points = 0; });
+  room.roundQuestions = shuffle(room.questionBank);
   room.turnOrder = makeTurnOrder(room);
   room.turnIndex = 0;
+  room.meaningQuestionIndex = 0;
+  room.tafsirQuestionIndex = 0;
   room.phase = "playing";
   beginTurn(room);
   sendRoom(room, "started");
@@ -319,6 +347,14 @@ wss.on("connection", (peer) => {
     if (data.type === "create" && !state.roomCode) return createRoom(peer, data);
     if (data.type === "join" && !state.roomCode) return joinRoom(peer, data);
     if (!state.roomCode) return error(peer, "أنشئ غرفة أو انضم إلى غرفة أولًا.");
+    if (["answer", "gradeOral", "next"].includes(data.type)) {
+      const room = rooms.get(state.roomCode);
+      if (room?.phase !== "playing") return;
+      if (!Number.isInteger(data.roundNumber) || !Number.isInteger(data.turnIndex)) {
+        return error(peer, "حدّث الصفحة لاستخدام الإصدار الجديد من لعبة الصف.");
+      }
+      if (data.roundNumber !== room.roundNumber || data.turnIndex !== room.turnIndex) return;
+    }
     if (data.type === "start") return startGame(peer, state);
     if (data.type === "answer") return answer(peer, state, data);
     if (data.type === "gradeOral") return gradeOral(peer, state, data);
@@ -334,17 +370,15 @@ wss.on("connection", (peer) => {
     const room = rooms.get(state.roomCode);
     if (!room) return;
     if (state.role === "host") {
-      rooms.delete(room.code);
-      for (const [otherPeer, otherState] of peers) {
-        if (otherState.roomCode === room.code) {
-          send(otherPeer, { type: "error", message: "أغلق المعلّم الغرفة." });
-          otherPeer.close();
-        }
-      }
+      closeRoom(room, "أغلق المعلّم الغرفة.");
       return;
     }
     const player = room.players.find((item) => item.id === state.playerId);
     if (player) player.connected = false;
+    if (room.phase === "playing" && room.currentPlayerId === state.playerId && !room.answered) {
+      advanceTurn(room);
+      return;
+    }
     if (room.phase === "lobby") room.players = room.players.filter((item) => item.id !== state.playerId);
     sendRoom(room);
   });
@@ -352,8 +386,10 @@ wss.on("connection", (peer) => {
 
 setInterval(() => {
   const now = Date.now();
-  for (const [roomCode, room] of rooms) {
-    if (now - room.createdAt > MAX_ROOM_AGE_MS) rooms.delete(roomCode);
+  for (const room of rooms.values()) {
+    if (now - room.createdAt >= MAX_ROOM_AGE_MS) {
+      closeRoom(room, "انتهت مدة الغرفة. أنشئ غرفة جديدة لمواصلة اللعب.");
+    }
   }
 }, 15 * 60 * 1000).unref();
 
